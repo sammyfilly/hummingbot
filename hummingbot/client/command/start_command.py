@@ -42,7 +42,7 @@ class StartCommand(GatewayChainApiManager):
     async def wait_till_ready(self,  # type: HummingbotApplication
                               func: Callable, *args, **kwargs):
         while True:
-            all_ready = all([market.ready for market in self.markets.values()])
+            all_ready = all(market.ready for market in self.markets.values())
             if not all_ready:
                 await asyncio.sleep(0.5)
             else:
@@ -53,8 +53,7 @@ class StartCommand(GatewayChainApiManager):
             settings.AllConnectorSettings.get_connector_settings().get(e, None)
             for e in required_exchanges
         ]
-        return any([s.uses_gateway_generic_connector()
-                    for s in exchange_settings])
+        return any(s.uses_gateway_generic_connector() for s in exchange_settings)
 
     def start(self,  # type: HummingbotApplication
               log_level: Optional[str] = None,
@@ -77,8 +76,6 @@ class StartCommand(GatewayChainApiManager):
         self._in_start_check = True
 
         if settings.required_rate_oracle:
-            # If the strategy to run requires using the rate oracle to find FX rates, validate there is a rate for
-            # each configured token pair
             if not (await self.confirm_oracle_conversion_rate()):
                 self.notify("The strategy failed to start.")
                 self._in_start_check = False
@@ -126,7 +123,10 @@ class StartCommand(GatewayChainApiManager):
             self.notify("Invalid strategy. Start aborted.")
             raise
 
-        if any([str(exchange).endswith("paper_trade") for exchange in settings.required_exchanges]):
+        if any(
+            str(exchange).endswith("paper_trade")
+            for exchange in settings.required_exchanges
+        ):
             self.notify("\nPaper Trading Active: All orders are simulated and no real orders are placed.")
 
         for exchange in settings.required_exchanges:
@@ -137,8 +137,7 @@ class StartCommand(GatewayChainApiManager):
             # confirm gateway connection
             conn_setting: settings.ConnectorSetting = settings.AllConnectorSettings.get_connector_settings()[connector]
             if conn_setting.uses_gateway_generic_connector():
-                connector_details: Dict[str, Any] = conn_setting.conn_init_parameters()
-                if connector_details:
+                if connector_details := conn_setting.conn_init_parameters():
                     data: List[List[str]] = [
                         ["chain", connector_details['chain']],
                         ["network", connector_details['network']],
@@ -154,8 +153,7 @@ class StartCommand(GatewayChainApiManager):
                         for k, v in UserBalances.instance().all_balances(connector).items()
                     ]
                     data.append(["balances", ""])
-                    for bal in balances:
-                        data.append(["", bal])
+                    data.extend(["", bal] for bal in balances)
                     wallet_df: pd.DataFrame = pd.DataFrame(data=data, columns=["", f"{connector} configuration"])
                     self.notify(wallet_df.to_string(index=False))
 
@@ -175,12 +173,10 @@ class StartCommand(GatewayChainApiManager):
                             self._in_start_check = False
                             return
 
-            # Display custom warning message for specific connectors
             elif warning_msg is not None:
                 self.notify(f"\nConnector status: {status}\n"
                             f"{warning_msg}")
 
-            # Display warning message if the exchange connector has outstanding issues or not working
             elif status.endswith("UNKNOWN"):
                 self.notify(f"\nConnector status: {status}. This connector has one or more issues.\n"
                             "Refer to our Github page for more info: https://github.com/hummingbot/hummingbot")
@@ -197,9 +193,9 @@ class StartCommand(GatewayChainApiManager):
 
     def start_script_strategy(self):
         script_strategy = self.load_script_class()
-        markets_list = []
-        for conn, pairs in script_strategy.markets.items():
-            markets_list.append((conn, list(pairs)))
+        markets_list = [
+            (conn, list(pairs)) for conn, pairs in script_strategy.markets.items()
+        ]
         self._initialize_markets(markets_list)
         self.strategy = script_strategy(self.markets)
 
@@ -277,7 +273,6 @@ class StartCommand(GatewayChainApiManager):
     async def confirm_oracle_conversion_rate(self,  # type: HummingbotApplication
                                              ) -> bool:
         try:
-            result = False
             self.app.clear_input()
             self.placeholder_mode = True
             self.app.hide_input = True
@@ -291,8 +286,7 @@ class StartCommand(GatewayChainApiManager):
                                required_if=lambda: True,
                                validator=lambda v: validate_bool(v))
             await self.prompt_a_config_legacy(config)
-            if config.value:
-                result = True
+            result = bool(config.value)
         except OracleRateUnavailable:
             self.notify("Oracle rate is not available.")
         finally:

@@ -55,8 +55,7 @@ class AltmarketsAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     @classmethod
     def _get_throttler_instance(cls) -> AsyncThrottler:
-        throttler = AsyncThrottler(Constants.RATE_LIMITS)
-        return throttler
+        return AsyncThrottler(Constants.RATE_LIMITS)
 
     @classmethod
     async def get_last_traded_prices(cls,

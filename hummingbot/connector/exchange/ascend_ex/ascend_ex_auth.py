@@ -32,7 +32,7 @@ class AscendExAuth(AuthBase):
 
         headers = {}
         if request.headers is not None:
-            headers.update(request.headers)
+            headers |= request.headers
         headers.update(headers_auth)
         request.headers = headers
 

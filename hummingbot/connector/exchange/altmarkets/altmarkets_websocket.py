@@ -35,7 +35,7 @@ class AltmarketsWebsocket(RequestId):
                  auth: Optional[AltmarketsAuth] = None,
                  throttler: Optional[AsyncThrottler] = None):
         self._auth: Optional[AltmarketsAuth] = auth
-        self._isPrivate = True if self._auth is not None else False
+        self._isPrivate = self._auth is not None
         self._WS_URL = Constants.WS_PRIVATE_URL if self._isPrivate else Constants.WS_PUBLIC_URL
         self._client: Optional[websockets.WebSocketClientProtocol] = None
         self._is_subscribed = False
@@ -77,13 +77,13 @@ class AltmarketsWebsocket(RequestId):
                             yield None
                         elif "success" in msg:
                             ws_method: str = msg.get('success', {}).get('message')
-                            if ws_method in ['subscribed', 'unsubscribed']:
-                                if ws_method == 'subscribed' and len(msg['success']['streams']) > 0:
+                            if ws_method == 'subscribed':
+                                if len(msg['success']['streams']) > 0:
                                     self._is_subscribed = True
                                     yield None
-                                elif ws_method == 'unsubscribed':
-                                    self._is_subscribed = False
-                                    yield None
+                            elif ws_method == 'unsubscribed':
+                                self._is_subscribed = False
+                                yield None
                         else:
                             yield msg
                     except ValueError:

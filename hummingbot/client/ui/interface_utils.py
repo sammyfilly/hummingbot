@@ -67,20 +67,24 @@ async def start_trade_monitor(trade_monitor):
             if hb.strategy_task is not None and not hb.strategy_task.done():
                 if all(market.ready for market in hb.markets.values()):
                     with hb.trade_fill_db.get_new_session() as session:
-                        trades: List[TradeFill] = hb._get_trades_from_session(
+                        if trades := hb._get_trades_from_session(
                             int(hb.init_time * 1e3),
                             session=session,
-                            config_file_path=hb.strategy_file_name)
-                        if len(trades) > 0:
-                            market_info: Set[Tuple[str, str]] = set((t.market, t.symbol) for t in trades)
+                            config_file_path=hb.strategy_file_name,
+                        ):
+                            market_info: Set[Tuple[str, str]] = {(t.market, t.symbol) for t in trades}
                             for market, symbol in market_info:
                                 cur_trades = [t for t in trades if t.market == market and t.symbol == symbol]
                                 cur_balances = await hb.get_current_balances(market)
                                 perf = await PerformanceMetrics.create(symbol, cur_trades, cur_balances)
                                 return_pcts.append(perf.return_pct)
                                 pnls.append(perf.total_pnl)
-                            avg_return = sum(return_pcts) / len(return_pcts) if len(return_pcts) > 0 else s_decimal_0
-                            quote_assets = set(t.symbol.split("-")[1] for t in trades)
+                            avg_return = (
+                                sum(return_pcts) / len(return_pcts)
+                                if return_pcts
+                                else s_decimal_0
+                            )
+                            quote_assets = {t.symbol.split("-")[1] for t in trades}
                             if len(quote_assets) == 1:
                                 total_pnls = f"{PerformanceMetrics.smart_round(sum(pnls))} {list(quote_assets)[0]}"
                             else:

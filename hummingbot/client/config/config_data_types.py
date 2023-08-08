@@ -52,7 +52,7 @@ class BaseClientModel(BaseModel):
     def is_required(self, attr: str) -> bool:
         return self.__fields__[attr].required
 
-    def validate_decimal(v: str, field: Field):
+    def validate_decimal(self, field: Field):
         """Used for client-friendly error output."""
         field_info = field.field_info
         inclusive = field_info.ge is not None or field_info.le is not None
@@ -60,10 +60,10 @@ class BaseClientModel(BaseModel):
         min_value = Decimal(min_value) if min_value is not None else min_value
         max_value = field_info.lt if field_info.lt is not None else field_info.le
         max_value = Decimal(max_value) if max_value is not None else max_value
-        ret = validate_decimal(v, min_value, max_value, inclusive)
+        ret = validate_decimal(self, min_value, max_value, inclusive)
         if ret is not None:
             raise ValueError(ret)
-        return v
+        return self
 
 
 class BaseConnectorConfigMap(BaseClientModel):

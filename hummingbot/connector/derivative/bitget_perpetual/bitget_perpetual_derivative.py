@@ -131,12 +131,11 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
 
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         trading_rule: TradingRule = self._trading_rules.get(trading_pair, None)
-        if trading_rule is None:
-            collateral_token = self._collateral_token_based_on_product_type(trading_pair=trading_pair)
-        else:
-            collateral_token = trading_rule.buy_order_collateral_token
-
-        return collateral_token
+        return (
+            self._collateral_token_based_on_product_type(trading_pair=trading_pair)
+            if trading_rule is None
+            else trading_rule.buy_order_collateral_token
+        )
 
     def get_sell_collateral_token(self, trading_pair: str) -> str:
         return self.get_buy_collateral_token(trading_pair=trading_pair)
@@ -185,8 +184,9 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
                 break
 
         if full_symbol is None:
-            raise ValueError(f"No trading pair associated to instrument ID {instrument_id}")
-
+            raise ValueError(
+                f"No trading pair associated to instrument ID {symbol_without_product_type}"
+            )
         return full_symbol
 
     async def product_type_for_trading_pair(self, trading_pair: str) -> str:
@@ -199,20 +199,12 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
     def _collateral_token_based_on_product_type(self, trading_pair: str) -> str:
         base, quote = split_hb_trading_pair(trading_pair=trading_pair)
 
-        if quote == "USD":
-            collateral_token = base
-        else:
-            collateral_token = quote
-
-        return collateral_token
+        return base if quote == "USD" else quote
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
         error_description = str(request_exception)
         ts_error_target_str = "Request timestamp expired"
-        is_time_synchronizer_related = (
-            ts_error_target_str in error_description
-        )
-        return is_time_synchronizer_related
+        return ts_error_target_str in error_description
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         # TODO: implement this method correctly for the connector
@@ -301,16 +293,8 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
                  is_maker: Optional[bool] = None) -> TradeFeeBase:
         is_maker = is_maker or (order_type is OrderType.LIMIT_MAKER)
         trading_pair = combine_to_hb_trading_pair(base=base_currency, quote=quote_currency)
-        if trading_pair in self._trading_fees:
-            fee_schema: TradeFeeSchema = self._trading_fees[trading_pair]
-            fee_rate = fee_schema.maker_percent_fee_decimal if is_maker else fee_schema.maker_percent_fee_decimal
-            fee = TradeFeeBase.new_spot_fee(
-                fee_schema=fee_schema,
-                trade_type=order_side,
-                percent=fee_rate,
-            )
-        else:
-            fee = build_trade_fee(
+        if trading_pair not in self._trading_fees:
+            return build_trade_fee(
                 self.name,
                 is_maker,
                 base_currency=base_currency,
@@ -320,7 +304,13 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
                 amount=amount,
                 price=price,
             )
-        return fee
+        fee_schema: TradeFeeSchema = self._trading_fees[trading_pair]
+        fee_rate = fee_schema.maker_percent_fee_decimal
+        return TradeFeeBase.new_spot_fee(
+            fee_schema=fee_schema,
+            trade_type=order_side,
+            percent=fee_rate,
+        )
 
     async def _update_trading_fees(self):
         symbol_data = []
@@ -369,8 +359,10 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
         Calls REST API to update total and available balances
         """
         balances = {}
-        trading_pairs_product_types = set([await self.product_type_for_trading_pair(trading_pair=trading_pair)
-                                           for trading_pair in self.trading_pairs])
+        trading_pairs_product_types = {
+            await self.product_type_for_trading_pair(trading_pair=trading_pair)
+            for trading_pair in self.trading_pairs
+        }
         product_types = trading_pairs_product_types or CONSTANTS.ALL_PRODUCT_TYPES
 
         for product_type in product_types:
@@ -464,12 +456,11 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
             "orderId": order.exchange_order_id,
             "symbol": exchange_symbol,
         }
-        res = await self._api_get(
+        return await self._api_get(
             path_url=CONSTANTS.USER_TRADE_RECORDS_PATH_URL,
             params=body_params,
             is_auth_required=True,
         )
-        return res
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         try:
@@ -509,13 +500,11 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
         if tracked_order.exchange_order_id is not None:
             query_params["orderId"] = tracked_order.exchange_order_id
 
-        resp = await self._api_get(
+        return await self._api_get(
             path_url=CONSTANTS.QUERY_ACTIVE_ORDER_PATH_URL,
             params=query_params,
             is_auth_required=True,
         )
-
-        return resp
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
         exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair)
@@ -526,8 +515,7 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
             params=params,
         )
 
-        price = float(resp_json["data"]["last"])
-        return price
+        return float(resp_json["data"]["last"])
 
     async def _trading_pair_position_mode_set(self, mode: PositionMode, trading_pair: str) -> Tuple[bool, str]:
         if len(self.account_positions) > 0:
@@ -739,15 +727,16 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
         fillable_order = self._order_tracker.all_fillable_orders.get(client_order_id)
 
         if fillable_order is not None and "tradeId" in trade_msg:
-            trade_update = self._parse_websocket_trade_update(trade_msg=trade_msg, tracked_order=fillable_order)
-            if trade_update:
+            if trade_update := self._parse_websocket_trade_update(
+                trade_msg=trade_msg, tracked_order=fillable_order
+            ):
                 self._order_tracker.process_trade_update(trade_update)
 
     def _parse_websocket_trade_update(self, trade_msg: Dict, tracked_order: InFlightOrder) -> TradeUpdate:
         trade_id: str = trade_msg["tradeId"]
 
         if trade_id is not None:
-            trade_id = str(trade_id)
+            trade_id = trade_id
             fee_asset = trade_msg["fillFeeCcy"]
             fee_amount = Decimal(trade_msg["fillFee"])
             position_side = trade_msg["side"]
@@ -787,7 +776,11 @@ class BitgetPerpetualDerivative(PerpetualDerivativePyBase):
 
         fee_asset = tracked_order.quote_asset
         fee_amount = Decimal(trade_msg["fee"])
-        position_action = (PositionAction.OPEN if "open" == trade_msg["side"] else PositionAction.CLOSE)
+        position_action = (
+            PositionAction.OPEN
+            if trade_msg["side"] == "open"
+            else PositionAction.CLOSE
+        )
 
         flat_fees = [] if fee_amount == Decimal("0") else [TokenAmount(amount=fee_amount, token=fee_asset)]
 

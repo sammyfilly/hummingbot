@@ -34,7 +34,7 @@ class BybitPerpetualAuth(AuthBase):
     async def _authenticate_post(self, request: RESTRequest) -> RESTRequest:
         data = json.loads(request.data) if request.data is not None else {}
         data = self._extend_params_with_authentication_info(data)
-        data = {key: value for key, value in sorted(data.items())}
+        data = dict(sorted(data.items()))
         request.data = json.dumps(data)
         return request
 
@@ -51,13 +51,11 @@ class BybitPerpetualAuth(AuthBase):
         :return: a dictionary of authentication info including the request signature
         """
         expires = self._get_expiration_timestamp()
-        raw_signature = "GET/realtime" + expires
+        raw_signature = f"GET/realtime{expires}"
         signature = hmac.new(
             self._secret_key.encode("utf-8"), raw_signature.encode("utf-8"), hashlib.sha256
         ).hexdigest()
-        auth_info = [self._api_key, expires, signature]
-
-        return auth_info
+        return [self._api_key, expires, signature]
 
     def _extend_params_with_authentication_info(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params["timestamp"] = self._get_timestamp()
@@ -66,7 +64,7 @@ class BybitPerpetualAuth(AuthBase):
         for key, value in sorted(params.items()):
             converted_value = float(value) if type(value) is Decimal else value
             converted_value = converted_value if type(value) is str else json.dumps(converted_value)
-            key_value_elements.append(str(key) + "=" + converted_value)
+            key_value_elements.append(f"{str(key)}={converted_value}")
         raw_signature = "&".join(key_value_elements)
         signature = hmac.new(self._secret_key.encode("utf-8"), raw_signature.encode("utf-8"), hashlib.sha256).hexdigest()
         params["sign"] = signature

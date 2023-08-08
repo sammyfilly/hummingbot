@@ -43,9 +43,8 @@ class GateIoPerpetualAPIUserStreamDataSource(UserStreamTrackerDataSource):
         :param websocket_assistant: the websocket assistant used to connect to the exchange
         """
         try:
-            user_info_symbols = [self._user_id]
             symbols = ["!all"]
-            user_info_symbols.extend(symbols)
+            user_info_symbols = [self._user_id, *symbols]
             orders_change_payload = {
                 "time": int(self._time()),
                 "channel": CONSTANTS.USER_ORDERS_ENDPOINT_NAME,

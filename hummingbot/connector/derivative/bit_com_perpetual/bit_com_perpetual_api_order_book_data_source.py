@@ -45,14 +45,14 @@ class BitComPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         symbol_info: Dict[str, Any] = await self._request_complete_funding_info(trading_pair)
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(symbol_info["data"]["index_price"]),
             mark_price=Decimal(symbol_info["data"]["mark_price"]),
-            next_funding_utc_timestamp=int(symbol_info["data"]["time"]) + CONSTANTS.FUNDING_RATE_INTERNAL_MIL_SECOND,
+            next_funding_utc_timestamp=int(symbol_info["data"]["time"])
+            + CONSTANTS.FUNDING_RATE_INTERNAL_MIL_SECOND,
             rate=Decimal(symbol_info["data"]["funding_rate"]),
         )
-        return funding_info
 
     async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
         ex_trading_pair = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
@@ -62,14 +62,13 @@ class BitComPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             "level": "50"
         }
 
-        data = await self._connector._api_get(
-            path_url=CONSTANTS.SNAPSHOT_REST_URL,
-            params=params)
-        return data
+        return await self._connector._api_get(
+            path_url=CONSTANTS.SNAPSHOT_REST_URL, params=params
+        )
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response: Dict[str, Any] = await self._request_order_book_snapshot(trading_pair)
-        snapshot_response.update({"trading_pair": trading_pair})
+        snapshot_response["trading_pair"] = trading_pair
         snapshot_msg: OrderBookMessage = OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": snapshot_response["trading_pair"],
             "update_id": int(snapshot_response['data']["timestamp"]),
@@ -205,7 +204,7 @@ class BitComPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def _request_complete_funding_info(self, trading_pair: str):
         ex_trading_pair = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        data = await self._connector._api_get(
+        return await self._connector._api_get(
             path_url=CONSTANTS.GET_LAST_FUNDING_RATE_PATH_URL,
-            params={"instrument_id": ex_trading_pair})
-        return data
+            params={"instrument_id": ex_trading_pair},
+        )

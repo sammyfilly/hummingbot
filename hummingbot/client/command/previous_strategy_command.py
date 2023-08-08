@@ -16,9 +16,6 @@ class PreviousCommand:
         self,  # type: HummingbotApplication
         option: str,
     ):
-        if option is not None:
-            pass
-
         previous_strategy_file = self.client_config_map.previous_strategy
 
         if previous_strategy_file is not None:

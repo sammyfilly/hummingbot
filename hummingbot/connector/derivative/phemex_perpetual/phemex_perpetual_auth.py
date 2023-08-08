@@ -20,8 +20,11 @@ class PhemexPerpetualAuth(AuthBase):
         self._time_provider: TimeSynchronizer = time_provider
 
     def generate_signature_from_payload(self, payload: str) -> str:
-        signature = hmac.new(self._api_secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
-        return signature
+        return hmac.new(
+            self._api_secret.encode("utf-8"),
+            payload.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         expiry_timestamp = str(int(self._time_provider.time()) + CONSTANTS.ONE_MINUTE)  # expirary recommended to be set to 1 minuete

@@ -12,9 +12,7 @@ def get_installation_type():
         return "docker"
     package_dir = Path(__file__).resolve().parent.parent.parent
     bin_dir = [f for f in os.scandir(str(package_dir)) if f.name == "bin" and f.is_dir()]
-    if not bin_dir:
-        return "binary"
-    return "source"
+    return "binary" if not bin_dir else "source"
 
 
 client_system = get_system()

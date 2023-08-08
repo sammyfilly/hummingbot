@@ -104,11 +104,18 @@ class HummingbotCompleter(Completer):
     @property
     def _trading_pair_completer(self) -> Completer:
         trading_pair_fetcher = TradingPairFetcher.get_instance()
-        market = ""
-        for exchange in sorted(list(AllConnectorSettings.get_connector_settings().keys()), key=len, reverse=True):
-            if exchange in self.prompt_text:
-                market = exchange
-                break
+        market = next(
+            (
+                exchange
+                for exchange in sorted(
+                    list(AllConnectorSettings.get_connector_settings().keys()),
+                    key=len,
+                    reverse=True,
+                )
+                if exchange in self.prompt_text
+            ),
+            "",
+        )
         trading_pairs = trading_pair_fetcher.trading_pairs.get(market, []) if trading_pair_fetcher.ready and market else []
         return WordCompleter(trading_pairs, ignore_case=True, sentence=True)
 
@@ -127,7 +134,7 @@ class HummingbotCompleter(Completer):
     @property
     def _option_completer(self):
         outer = re.compile(r"\((.+)\)")
-        inner_str = outer.search(self.prompt_text).group(1)
+        inner_str = outer.search(self.prompt_text)[1]
         options = inner_str.split("/") if "/" in inner_str else []
         return WordCompleter(options, ignore_case=True)
 
@@ -239,7 +246,7 @@ class HummingbotCompleter(Completer):
     def _complete_subcommand(self, document: Document) -> bool:
         text_before_cursor: str = document.text_before_cursor
         index: int = text_before_cursor.index(' ')
-        return text_before_cursor[0:index] in self.parser.commands
+        return text_before_cursor[:index] in self.parser.commands
 
     def _complete_balance_limit_exchanges(self, document: Document):
         text_before_cursor: str = document.text_before_cursor
@@ -260,153 +267,127 @@ class HummingbotCompleter(Completer):
         :param complete_event:
         """
         if self._complete_pmm_script_files(document):
-            for c in self._py_file_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._py_file_completer.get_completions(document, complete_event)
         elif self._complete_script_strategy_files(document):
-            for c in self._script_strategy_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._script_strategy_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_paths(document):
-            for c in self._path_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._path_completer.get_completions(document, complete_event)
         elif self._complete_strategies(document):
-            for c in self._strategy_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._strategy_completer.get_completions(document, complete_event)
         elif self._complete_gateway_chain(document):
-            for c in self._gateway_chain_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_chain_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_gateway_network(document):
-            for c in self._gateway_network_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_network_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_gateway_wallet_addresses(document):
-            for c in self._gateway_wallet_address_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_wallet_address_completer.get_completions(
+                document, complete_event
+            )
         if self._complete_lp_connector(document):
-            for c in self._evm_amm_lp_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._evm_amm_lp_completer.get_completions(document, complete_event)
         elif self._complete_exchange_amm_connectors(document):
             if self._complete_spot_exchanges(document):
-                for c in self._spot_exchange_completer.get_completions(document, complete_event):
-                    yield c
+                yield from self._spot_exchange_completer.get_completions(
+                    document, complete_event
+                )
             else:
-                for c in self._exchange_amm_completer.get_completions(document, complete_event):
-                    yield c
-
+                yield from self._exchange_amm_completer.get_completions(
+                    document, complete_event
+                )
         elif self._complete_exchange_clob_connectors(document):
             if self._complete_spot_exchanges(document):
-                for c in self._spot_exchange_completer.get_completions(document, complete_event):
-                    yield c
+                yield from self._spot_exchange_completer.get_completions(
+                    document, complete_event
+                )
             elif self._complete_derivatives(document):
-                for c in self._derivative_exchange_completer.get_completions(document, complete_event):
-                    yield c
+                yield from self._derivative_exchange_completer.get_completions(
+                    document, complete_event
+                )
             else:
-                for c in self._exchange_clob_completer.get_completions(document, complete_event):
-                    yield c
-
+                yield from self._exchange_clob_completer.get_completions(
+                    document, complete_event
+                )
         elif self._complete_spot_exchanges(document):
-            for c in self._spot_exchange_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._spot_exchange_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_trading_timeframe(document):
-            for c in self._trading_timeframe_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._trading_timeframe_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_connect_options(document):
-            for c in self._connect_option_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._connect_option_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_export_options(document):
-            for c in self._export_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._export_completer.get_completions(document, complete_event)
         elif self._complete_balance_limit_exchanges(document):
-            for c in self._connect_option_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._connect_option_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_balance_options(document):
-            for c in self._balance_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._balance_completer.get_completions(document, complete_event)
         elif self._complete_history_arguments(document):
-            for c in self._history_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._history_completer.get_completions(document, complete_event)
         elif self._complete_gateway_connect_arguments(document):
-            for c in self._gateway_connect_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_connect_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_gateway_connector_tokens_arguments(document):
-            for c in self._gateway_connector_tokens_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_connector_tokens_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_gateway_approve_tokens_arguments(document):
-            for c in self._gateway_approve_tokens_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_approve_tokens_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_gateway_arguments(document):
-            for c in self._gateway_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_completer.get_completions(document, complete_event)
         elif self._complete_gateway_config_arguments(document):
-            for c in self._gateway_config_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._gateway_config_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_derivatives(document):
             if self._complete_exchanges(document):
-                for c in self._derivative_exchange_completer.get_completions(document, complete_event):
-                    yield c
+                yield from self._derivative_exchange_completer.get_completions(
+                    document, complete_event
+                )
             elif "(Exchange/CLOB)" in self.prompt_text:
-                for c in self._derivative_completer.get_completions(document, complete_event):
-                    yield c
+                yield from self._derivative_completer.get_completions(document, complete_event)
             else:
-                for c in self._derivative_completer.get_completions(document, complete_event):
-                    yield c
-
+                yield from self._derivative_completer.get_completions(document, complete_event)
         elif self._complete_exchanges(document):
-            for c in self._exchange_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._exchange_completer.get_completions(document, complete_event)
         elif self._complete_trading_pairs(document):
-            for c in self._trading_pair_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._trading_pair_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_command(document):
-            for c in self._command_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._command_completer.get_completions(document, complete_event)
         elif self._complete_configs(document):
-            for c in self._config_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._config_completer.get_completions(document, complete_event)
         elif self._complete_options(document):
-            for c in self._option_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._option_completer.get_completions(document, complete_event)
         elif self._complete_rate_oracle_source(document):
-            for c in self._rate_oracle_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._rate_oracle_completer.get_completions(
+                document, complete_event
+            )
         elif self._complete_mqtt_arguments(document):
-            for c in self._mqtt_completer.get_completions(document, complete_event):
-                yield c
-
+            yield from self._mqtt_completer.get_completions(document, complete_event)
         else:
             text_before_cursor: str = document.text_before_cursor
             try:
-                first_word: str = text_before_cursor[0:text_before_cursor.index(' ')]
+                first_word: str = text_before_cursor[:text_before_cursor.index(' ')]
             except ValueError:
                 return
             subcommand_completer: Completer = self.get_subcommand_completer(first_word)
             if complete_event.completion_requested or self._complete_subcommand(document):
-                for c in subcommand_completer.get_completions(document, complete_event):
-                    yield c
+                yield from subcommand_completer.get_completions(document, complete_event)
 
 
 def load_completer(hummingbot_application):

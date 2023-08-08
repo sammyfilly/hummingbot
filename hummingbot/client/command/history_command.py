@@ -62,14 +62,14 @@ class HistoryCommand:
                 int(start_time * 1e3),
                 session=session,
                 config_file_path=self.strategy_file_name)
-            return list([TradeFill.to_bounty_api_json(t) for t in trades])
+            return [TradeFill.to_bounty_api_json(t) for t in trades]
 
     async def history_report(self,  # type: HummingbotApplication
                              start_time: float,
                              trades: List[TradeFill],
                              precision: Optional[int] = None,
                              display_report: bool = True) -> Decimal:
-        market_info: Set[Tuple[str, str]] = set((t.market, t.symbol) for t in trades)
+        market_info: Set[Tuple[str, str]] = {(t.market, t.symbol) for t in trades}
         if display_report:
             self.report_header(start_time)
         return_pcts = []
@@ -87,7 +87,9 @@ class HistoryCommand:
             if display_report:
                 self.report_performance_by_market(market, symbol, perf, precision)
             return_pcts.append(perf.return_pct)
-        avg_return = sum(return_pcts) / len(return_pcts) if len(return_pcts) > 0 else s_decimal_0
+        avg_return = (
+            sum(return_pcts) / len(return_pcts) if return_pcts else s_decimal_0
+        )
         if display_report and len(return_pcts) > 1:
             self.notify(f"\nAveraged Return = {avg_return:.2%}")
         return avg_return
@@ -121,12 +123,8 @@ class HistoryCommand:
                                      trading_pair: str,
                                      perf: PerformanceMetrics,
                                      precision: int):
-        lines = []
         base, quote = trading_pair.split("-")
-        lines.extend(
-            [f"\n{market} / {trading_pair}"]
-        )
-
+        lines = [f"\n{market} / {trading_pair}"]
         trades_columns = ["", "buy", "sell", "total"]
         trades_data = [
             [f"{'Number of trades':<27}", perf.num_buys, perf.num_sells, perf.num_trades],
@@ -148,24 +146,34 @@ class HistoryCommand:
 
         assets_columns = ["", "start", "current", "change"]
         assets_data = [
-            [f"{base:<17}", "-", "-", "-"] if market in AllConnectorSettings.get_derivative_names() else  # No base asset for derivatives because they are margined
-            [f"{base:<17}",
-             PerformanceMetrics.smart_round(perf.start_base_bal, precision),
-             PerformanceMetrics.smart_round(perf.cur_base_bal, precision),
-             PerformanceMetrics.smart_round(perf.tot_vol_base, precision)],
-            [f"{quote:<17}",
-             PerformanceMetrics.smart_round(perf.start_quote_bal, precision),
-             PerformanceMetrics.smart_round(perf.cur_quote_bal, precision),
-             PerformanceMetrics.smart_round(perf.tot_vol_quote, precision)],
-            [f"{trading_pair + ' price':<17}",
-             PerformanceMetrics.smart_round(perf.start_price),
-             PerformanceMetrics.smart_round(perf.cur_price),
-             PerformanceMetrics.smart_round(perf.cur_price - perf.start_price)],
-            [f"{'Base asset %':<17}", "-", "-", "-"] if market in AllConnectorSettings.get_derivative_names() else  # No base asset for derivatives because they are margined
-            [f"{'Base asset %':<17}",
-             f"{perf.start_base_ratio_pct:.2%}",
-             f"{perf.cur_base_ratio_pct:.2%}",
-             f"{perf.cur_base_ratio_pct - perf.start_base_ratio_pct:.2%}"],
+            [f"{base:<17}", "-", "-", "-"]
+            if market in AllConnectorSettings.get_derivative_names()
+            else [  # No base asset for derivatives because they are margined
+                f"{base:<17}",
+                PerformanceMetrics.smart_round(perf.start_base_bal, precision),
+                PerformanceMetrics.smart_round(perf.cur_base_bal, precision),
+                PerformanceMetrics.smart_round(perf.tot_vol_base, precision),
+            ],
+            [
+                f"{quote:<17}",
+                PerformanceMetrics.smart_round(perf.start_quote_bal, precision),
+                PerformanceMetrics.smart_round(perf.cur_quote_bal, precision),
+                PerformanceMetrics.smart_round(perf.tot_vol_quote, precision),
+            ],
+            [
+                f"{f'{trading_pair} price':<17}",
+                PerformanceMetrics.smart_round(perf.start_price),
+                PerformanceMetrics.smart_round(perf.cur_price),
+                PerformanceMetrics.smart_round(perf.cur_price - perf.start_price),
+            ],
+            [f"{'Base asset %':<17}", "-", "-", "-"]
+            if market in AllConnectorSettings.get_derivative_names()
+            else [  # No base asset for derivatives because they are margined
+                f"{'Base asset %':<17}",
+                f"{perf.start_base_ratio_pct:.2%}",
+                f"{perf.cur_base_ratio_pct:.2%}",
+                f"{perf.cur_base_ratio_pct - perf.start_base_ratio_pct:.2%}",
+            ],
         ]
         assets_df: pd.DataFrame = pd.DataFrame(data=assets_data, columns=assets_columns)
         lines.extend(["", "  Assets:"] + ["    " + line for line in assets_df.to_string(index=False).split("\n")])

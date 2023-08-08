@@ -52,7 +52,7 @@ class CmdlineParser(argparse.ArgumentParser):
 
 
 def autofix_permissions(user_group_spec: str):
-    uid, gid = [sub_str for sub_str in user_group_spec.split(':')]
+    uid, gid = list(user_group_spec.split(':'))
 
     uid = int(uid) if uid.isnumeric() else pwd.getpwnam(uid).pw_uid
     gid = int(gid) if gid.isnumeric() else grp.getgrnam(gid).gr_gid

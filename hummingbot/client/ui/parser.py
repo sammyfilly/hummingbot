@@ -33,8 +33,7 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
         if parser is None:
             return []
         subcommands = parser._optionals._option_string_actions.keys()
-        filtered = list(filter(lambda sub: sub.startswith("--"), subcommands))
-        return filtered
+        return list(filter(lambda sub: sub.startswith("--"), subcommands))
 
 
 def load_parser(hummingbot: "HummingbotApplication", command_tabs) -> [ThrowingArgumentParser, Any]:

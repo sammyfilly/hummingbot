@@ -78,33 +78,34 @@ class BitgetPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
     async def _subscribe_channels(self, websocket_assistant: WSAssistant):
         try:
-            product_types = set([await self._connector.product_type_for_trading_pair(trading_pair=trading_pair)
-                                 for trading_pair in self._trading_pairs])
+            product_types = {
+                await self._connector.product_type_for_trading_pair(
+                    trading_pair=trading_pair
+                )
+                for trading_pair in self._trading_pairs
+            }
             subscription_payloads = []
 
             for product_type in product_types:
-                subscription_payloads.append(
-                    {
-                        "instType": product_type.upper(),
-                        "channel": CONSTANTS.WS_SUBSCRIPTION_WALLET_ENDPOINT_NAME,
-                        "instId": "default"
-                    }
+                subscription_payloads.extend(
+                    (
+                        {
+                            "instType": product_type.upper(),
+                            "channel": CONSTANTS.WS_SUBSCRIPTION_WALLET_ENDPOINT_NAME,
+                            "instId": "default",
+                        },
+                        {
+                            "instType": product_type.upper(),
+                            "channel": CONSTANTS.WS_SUBSCRIPTION_POSITIONS_ENDPOINT_NAME,
+                            "instId": "default",
+                        },
+                        {
+                            "instType": product_type.upper(),
+                            "channel": CONSTANTS.WS_SUBSCRIPTION_ORDERS_ENDPOINT_NAME,
+                            "instId": "default",
+                        },
+                    )
                 )
-                subscription_payloads.append(
-                    {
-                        "instType": product_type.upper(),
-                        "channel": CONSTANTS.WS_SUBSCRIPTION_POSITIONS_ENDPOINT_NAME,
-                        "instId": "default"
-                    }
-                )
-                subscription_payloads.append(
-                    {
-                        "instType": product_type.upper(),
-                        "channel": CONSTANTS.WS_SUBSCRIPTION_ORDERS_ENDPOINT_NAME,
-                        "instId": "default"
-                    }
-                )
-
             payload = {
                 "op": "subscribe",
                 "args": subscription_payloads

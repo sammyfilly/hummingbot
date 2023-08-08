@@ -76,7 +76,7 @@ async def get_market_snapshots(market_id: int):
 
 async def get_market_last_snapshot(market_id: int):
     data = await get_market_snapshots(market_id)
-    data = sorted(list(set([d.get("timestamp") for d in data.get('data')])))
+    data = sorted(list({d.get("timestamp") for d in data.get('data')}))
 
     await asyncio.sleep(0.5)
 

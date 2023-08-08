@@ -214,17 +214,20 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
 
     @property
     def status_dict(self):
-        sd = {
+        return {
             "symbols_mapping_initialized": BitmexPerpetualAPIOrderBookDataSource.trading_pair_symbol_map_ready(
-                domain=self._domain),
+                domain=self._domain
+            ),
             "order_books_initialized": self._order_book_tracker.ready,
-            "account_balance": len(self._account_balances) > 0 if self._trading_required else True,
+            "account_balance": len(self._account_balances) > 0
+            if self._trading_required
+            else True,
             "trading_rule_initialized": len(self._trading_rules) > 0,
             "position_mode": self.position_mode is not None,
             "funding_info_initialized": self._order_book_tracker.is_funding_info_initialized(),
-            "user_stream_initialized": self._user_stream_tracker.data_source.last_recv_time > 0,
+            "user_stream_initialized": self._user_stream_tracker.data_source.last_recv_time
+            > 0,
         }
-        return sd
 
     @property
     def limit_orders(self) -> List[LimitOrder]:
@@ -417,10 +420,9 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
         """
         if trading_pair in self._order_book_tracker.data_source.funding_info:
             return self._order_book_tracker.data_source.funding_info[trading_pair]
-        else:
-            self.logger().error(f"Funding Info for {trading_pair} not found. Proceeding to fetch using REST API.")
-            safe_ensure_future(self._order_book_tracker.data_source.get_funding_info(trading_pair))
-            return None
+        self.logger().error(f"Funding Info for {trading_pair} not found. Proceeding to fetch using REST API.")
+        safe_ensure_future(self._order_book_tracker.data_source.get_funding_info(trading_pair))
+        return None
 
     def set_leverage(self, trading_pair: str, leverage: int = 1):
         self._leverage[trading_pair] = leverage
@@ -535,19 +537,17 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
         size_currency_type = self._trading_pair_to_size_type[trading_pair]
         if size_currency_type.is_base:
             return await ExchangeBase.get_order_price(self, trading_pair, is_buy, amount)
-        else:
-            order_book: OrderBook = self.get_order_book(trading_pair)
-            result = order_book.get_price_for_volume(is_buy, float(amount))
-            return Decimal(str(result.result_price))
+        order_book: OrderBook = self.get_order_book(trading_pair)
+        result = order_book.get_price_for_volume(is_buy, float(amount))
+        return Decimal(str(result.result_price))
 
     async def get_quote_price(self, trading_pair: str, is_buy: bool, amount: Decimal) -> Decimal:
         size_currency_type = self._trading_pair_to_size_type[trading_pair]
         if size_currency_type.is_base:
             return await ExchangeBase.get_quote_price(self, trading_pair, is_buy, amount)
-        else:
-            order_book: OrderBook = self.get_order_book(trading_pair)
-            result = order_book.get_vwap_for_volume(is_buy, float(amount))
-            return Decimal(str(result.result_price))
+        order_book: OrderBook = self.get_order_book(trading_pair)
+        result = order_book.get_vwap_for_volume(is_buy, float(amount))
+        return Decimal(str(result.result_price))
 
     async def _update_trading_rules(self):
         """
@@ -784,9 +784,8 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
                     amount=amount,
                     leverage=leverage
                 )
-            else:
-                if pos_key in self._account_positions:
-                    del self._account_positions[pos_key]
+            elif pos_key in self._account_positions:
+                del self._account_positions[pos_key]
 
     async def _get_position_mode(self):
         self._position_mode = PositionMode.ONEWAY
@@ -933,12 +932,9 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
             if in_flight_order is not None:
                 # Begin tracking order
                 in_flight_order.update_exchange_order_id(bitmex_order_id)
-                self.logger().info(
-                    f"Created order {client_order_id} for {amount} {trading_pair}."
-                )
-            else:
-                self.logger().info(f"Created order {client_order_id} for {amount} {trading_pair}.")
-
+            self.logger().info(
+                f"Created order {client_order_id} for {amount} {trading_pair}."
+            )
         except Exception as e:
             self.logger().warning(
                 f"Error submitting {order_side.name} {order_type.name} order to bitmex for "
@@ -1143,7 +1139,7 @@ class BitmexPerpetualDerivative(ExchangeBase, PerpetualTrading):
             await self.set_balance(currency_info)
 
     async def set_balance(self, data: Dict[str, Any]):
-        if not (len(self._token_multiplier) > 0):
+        if len(self._token_multiplier) <= 0:
             await self._initialize_token_decimals()
         asset_name = data['currency'].upper()
         asset_name = "ETH" if asset_name == "GWEI" else asset_name

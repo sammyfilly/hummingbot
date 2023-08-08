@@ -67,7 +67,7 @@ class ExportCommand:
             trades: List[TradeFill] = self._get_trades_from_session(
                 int(self.init_time * 1e3),
                 session=session)
-            if len(trades) == 0:
+            if not trades:
                 self.notify("No past trades to export.")
                 return
             self.placeholder_mode = True

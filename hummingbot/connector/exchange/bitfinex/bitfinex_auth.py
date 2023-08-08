@@ -10,16 +10,15 @@ class BitfinexAuth():
         self.last_nonce = 0
 
     def _sign_payload(self, payload) -> str:
-        sig = hmac.new(self.secret_key.encode('utf8'),
-                       payload.encode('utf8'),
-                       hashlib.sha384).hexdigest()
-        return sig
+        return hmac.new(
+            self.secret_key.encode('utf8'), payload.encode('utf8'), hashlib.sha384
+        ).hexdigest()
 
     def get_nonce(self) -> int:
         nonce = int(round(time.time() * 1_000_000))
 
         if self.last_nonce == nonce:
-            nonce = nonce + 1
+            nonce += 1
         elif self.last_nonce > nonce:
             nonce = self.last_nonce + 1
 
@@ -49,7 +48,7 @@ class BitfinexAuth():
         Generate headers for a signed payload
         """
         nonce = str(self.get_nonce())
-        signature = "/api/" + path + nonce + body
+        signature = f"/api/{path}{nonce}{body}"
 
         sig = self._sign_payload(signature)
 

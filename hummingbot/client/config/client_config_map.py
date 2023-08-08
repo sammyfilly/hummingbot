@@ -46,7 +46,7 @@ PMM_SCRIPT_FILE_PATH_KEY = "pmm_script_file_path"
 
 
 def generate_client_id() -> str:
-    vals = [random.choice(range(0, 256)) for i in range(0, 20)]
+    vals = [random.choice(range(0, 256)) for _ in range(0, 20)]
     return "".join([f"{val:02x}" for val in vals])
 
 
@@ -358,8 +358,9 @@ class KillSwitchEnabledMode(KillSwitchMode):
         title = "kill_switch_enabled"
 
     def get_kill_switch(self, hb: "HummingbotApplication") -> ActiveKillSwitch:
-        kill_switch = ActiveKillSwitch(kill_switch_rate=self.kill_switch_rate, hummingbot_application=hb)
-        return kill_switch
+        return ActiveKillSwitch(
+            kill_switch_rate=self.kill_switch_rate, hummingbot_application=hb
+        )
 
     @validator("kill_switch_rate", pre=True)
     def validate_decimal(cls, v: str, field: Field):
@@ -372,8 +373,7 @@ class KillSwitchDisabledMode(KillSwitchMode):
         title = "kill_switch_disabled"
 
     def get_kill_switch(self, hb: "HummingbotApplication") -> PassThroughKillSwitch:
-        kill_switch = PassThroughKillSwitch()
-        return kill_switch
+        return PassThroughKillSwitch()
 
 
 KILL_SWITCH_MODES = {
@@ -408,10 +408,11 @@ class TelegramEnabledMode(TelegramMode):
         title = "telegram_enabled"
 
     def get_notifiers(self, hb: "HummingbotApplication") -> List[TelegramNotifier]:
-        notifiers = [
-            TelegramNotifier(token=self.telegram_token, chat_id=self.telegram_chat_id, hb=hb)
+        return [
+            TelegramNotifier(
+                token=self.telegram_token, chat_id=self.telegram_chat_id, hb=hb
+            )
         ]
-        return notifiers
 
 
 class TelegramDisabledMode(TelegramMode):
@@ -554,13 +555,12 @@ class PMMScriptEnabledMode(PMMScriptMode):
             if folder == ""
             else self.pmm_script_file_path
         )
-        pmm_script_iterator = PMMScriptIterator(
+        return PMMScriptIterator(
             pmm_script_file,
             markets,
             strategy,
             queue_check_interval=0.1,
         )
-        return pmm_script_iterator
 
     @validator("pmm_script_file_path", pre=True)
     def validate_pmm_script_file_path(cls, v: str):
@@ -712,14 +712,13 @@ class AnonymizedMetricsEnabledMode(AnonymizedMetricsMode):
             instance_id: str,
             valuation_token: str = "USDT",
     ) -> MetricsCollector:
-        instance = TradeVolumeMetricCollector(
+        return TradeVolumeMetricCollector(
             connector=connector,
             activation_interval=self.anonymized_metrics_interval_min,
             rate_provider=rate_provider,
             instance_id=instance_id,
             valuation_token=valuation_token,
         )
-        return instance
 
     @validator("anonymized_metrics_interval_min", pre=True)
     def validate_decimal(cls, v: str, field: Field):
@@ -796,8 +795,7 @@ class CoinGeckoRateSourceMode(RateSourceModeBase):
 
     @validator("extra_tokens", pre=True)
     def validate_extra_tokens(cls, value: Union[str, List[str]]):
-        extra_tokens = value.split(",") if isinstance(value, str) else value
-        return extra_tokens
+        return value.split(",") if isinstance(value, str) else value
 
     @root_validator()
     def post_validations(cls, values: Dict):

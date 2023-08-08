@@ -49,14 +49,15 @@ class DydxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         funding_info_response = await self._request_complete_funding_info(trading_pair)
         market_info: Dict[str, Any] = funding_info_response["markets"][trading_pair]
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(market_info["indexPrice"])),
             mark_price=Decimal(str(market_info["oraclePrice"])),
-            next_funding_utc_timestamp=int(dp.parse(market_info["nextFundingAt"]).timestamp()),
+            next_funding_utc_timestamp=int(
+                dp.parse(market_info["nextFundingAt"]).timestamp()
+            ),
             rate=Decimal(str(market_info["nextFundingRate"])),
         )
-        return funding_info
 
     async def _subscribe_channels(self, ws: WSAssistant):
         try:
@@ -185,28 +186,29 @@ class DydxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 message_queue.put_nowait(trade_message)
 
     async def _parse_funding_info_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
-        if raw_message["type"] == "channel_data":
-            for trading_pair in raw_message["contents"].keys():
-                if trading_pair in self._trading_pairs:
-                    market_info = raw_message["contents"][trading_pair]
+        if raw_message["type"] != "channel_data":
+            return
+        for trading_pair in raw_message["contents"].keys():
+            if trading_pair in self._trading_pairs:
+                market_info = raw_message["contents"][trading_pair]
 
-                    if any(
-                        info in ["indexPrice", "oraclePrice", "nextFundingRate", "nextFundingAt"]
-                        for info in market_info.keys()
-                    ):
+                if any(
+                    info in ["indexPrice", "oraclePrice", "nextFundingRate", "nextFundingAt"]
+                    for info in market_info.keys()
+                ):
 
-                        info_update = FundingInfoUpdate(trading_pair)
+                    info_update = FundingInfoUpdate(trading_pair)
 
-                        if "indexPrice" in market_info.keys():
-                            info_update.index_price = Decimal(market_info["indexPrice"])
-                        if "oraclePrice" in market_info.keys():
-                            info_update.mark_price = Decimal(market_info["oraclePrice"])
-                        if "nextFundingRate" in market_info.keys():
-                            info_update.rate = Decimal(market_info["nextFundingRate"])
-                        if "nextFundingAt" in market_info.keys():
-                            info_update.next_funding_utc_timestamp = dp.parse(market_info["nextFundingAt"]).timestamp()
+                    if "indexPrice" in market_info.keys():
+                        info_update.index_price = Decimal(market_info["indexPrice"])
+                    if "oraclePrice" in market_info.keys():
+                        info_update.mark_price = Decimal(market_info["oraclePrice"])
+                    if "nextFundingRate" in market_info.keys():
+                        info_update.rate = Decimal(market_info["nextFundingRate"])
+                    if "nextFundingAt" in market_info.keys():
+                        info_update.next_funding_utc_timestamp = dp.parse(market_info["nextFundingAt"]).timestamp()
 
-                        message_queue.put_nowait(info_update)
+                    message_queue.put_nowait(info_update)
 
     async def _request_complete_funding_info(self, trading_pair: str) -> Dict[str, Any]:
         params = {
@@ -216,13 +218,12 @@ class DydxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         rest_assistant = await self._api_factory.get_rest_assistant()
         endpoint = CONSTANTS.PATH_MARKETS
         url = web_utils.public_rest_url(path_url=endpoint)
-        data = await rest_assistant.execute_request(
+        return await rest_assistant.execute_request(
             url=url,
             throttler_limit_id=endpoint,
             params=params,
             method=RESTMethod.GET,
         )
-        return data
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response = await self._request_order_book_snapshot(trading_pair)
@@ -248,14 +249,12 @@ class DydxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
         rest_assistant = await self._api_factory.get_rest_assistant()
         endpoint = CONSTANTS.PATH_SNAPSHOT
-        url = web_utils.public_rest_url(path_url=endpoint + "/" + trading_pair)
-        data = await rest_assistant.execute_request(
+        url = web_utils.public_rest_url(path_url=f"{endpoint}/{trading_pair}")
+        return await rest_assistant.execute_request(
             url=url,
             throttler_limit_id=endpoint,
             method=RESTMethod.GET,
         )
-
-        return data
 
     @staticmethod
     def _get_bids_and_asks_from_snapshot(

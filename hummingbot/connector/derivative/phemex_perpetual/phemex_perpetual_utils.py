@@ -20,8 +20,7 @@ EXAMPLE_PAIR = "BTC-USDT"
 
 def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     status = exchange_info.get("status")
-    valid = status == "Listed"
-    return valid
+    return status == "Listed"
 
 
 class PhemexPerpetualConfigMap(BaseConnectorConfigMap):

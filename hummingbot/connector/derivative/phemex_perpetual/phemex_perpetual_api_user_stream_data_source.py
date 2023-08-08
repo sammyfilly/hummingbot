@@ -109,7 +109,7 @@ class PhemexPerpetualAPIUserStreamDataSource(UserStreamTrackerDataSource):
                     await ws._connection.disconnect()
 
     async def _process_event_message(self, event_message: Dict[str, Any], queue: asyncio.Queue):
-        if len(event_message) > 0:
+        if event_message:
             if event_message.get("result", "") == "pong":
                 self.pong_received_event.set()
             else:

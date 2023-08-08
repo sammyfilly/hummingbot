@@ -107,7 +107,7 @@ def migrate_global_config() -> List[str]:
         for key in data:
             logging.getLogger().warning(f"Global ConfigVar {key} was not migrated.")
         errors.extend(client_config_map.validate_model())
-        if len(errors) == 0:
+        if not errors:
             save_to_yml(CLIENT_CONFIG_PATH, client_config_map)
             global_config_path.unlink()
             logging.getLogger().info("\nSuccessfully migrated the global config.")
@@ -312,14 +312,13 @@ def migrate_amm_confs(conf, new_path) -> List[str]:
             "order_levels": order_levels,
             "level_distances": conf.pop("level_distances")
         }
-    hanging_orders_enabled = conf.pop("hanging_orders_enabled")
-    if not hanging_orders_enabled:
-        conf["hanging_orders_mode"] = {}
-        conf.pop("hanging_orders_cancel_pct")
-    else:
+    if hanging_orders_enabled := conf.pop("hanging_orders_enabled"):
         conf["hanging_orders_mode"] = {
             "hanging_orders_cancel_pct": conf.pop("hanging_orders_cancel_pct")
         }
+    else:
+        conf["hanging_orders_mode"] = {}
+        conf.pop("hanging_orders_cancel_pct")
     if "template_version" in conf:
         conf.pop("template_version")
     try:
@@ -439,9 +438,9 @@ def _maybe_migrate_encrypted_confs(config_keys: BaseConnectorConfigMap) -> List[
                 missing_fields.append(el.attr)
     errors = []
     if found_one:
-        if len(missing_fields) != 0:
+        if missing_fields:
             errors = [f"{config_keys.connector} - missing fields: {missing_fields}"]
-        if len(errors) == 0:
+        if not errors:
             errors = cm.validate_model()
         if errors:
             errors = [f"{config_keys.connector} - {e}" for e in errors]

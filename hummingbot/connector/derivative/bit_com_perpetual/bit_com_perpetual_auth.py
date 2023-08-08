@@ -21,8 +21,7 @@ class BitComPerpetualAuth(AuthBase):
 
     def generate_signature_from_payload(self, payload: str) -> str:
         secret = bytes(self._api_secret.encode("utf-8"))
-        signature = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
-        return signature
+        return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         _path = urlparse(request.url).path
@@ -43,8 +42,7 @@ class BitComPerpetualAuth(AuthBase):
             list_val.append(obj_val)
         sorted_list = sorted(list_val)
         output = '&'.join(sorted_list)
-        output = '[' + output + ']'
-        return output
+        return f'[{output}]'
 
     def _encode_object(self, param_map):
         sorted_keys = sorted(param_map.keys())
@@ -66,15 +64,14 @@ class BitComPerpetualAuth(AuthBase):
                 ret_list.append(f'{key}={general_val}')
 
         sorted_list = sorted(ret_list)
-        output = '&'.join(sorted_list)
-        return output
+        return '&'.join(sorted_list)
 
     def add_auth_to_params(self, params: Dict[str, Any], path):
         timestamp = int(self._get_timestamp() * 1e3)
 
         request_params = OrderedDict(params or {})
         request_params.update({'timestamp': timestamp})
-        str_to_sign = path + '&' + self._encode_object(request_params)
+        str_to_sign = f'{path}&{self._encode_object(request_params)}'
         request_params["signature"] = self.generate_signature_from_payload(payload=str_to_sign)
 
         return request_params
@@ -86,10 +83,9 @@ class BitComPerpetualAuth(AuthBase):
 
         request_params = OrderedDict(data or {})
         request_params.update({'timestamp': timestamp})
-        str_to_sign = path + '&' + self._encode_object(request_params)
+        str_to_sign = f'{path}&{self._encode_object(request_params)}'
         request_params["signature"] = self.generate_signature_from_payload(payload=str_to_sign)
-        res = json.dumps(request_params)
-        return res
+        return json.dumps(request_params)
 
     @staticmethod
     def _get_timestamp():

@@ -33,13 +33,13 @@ def build_api_factory(
         auth: Optional[AuthBase] = None) -> WebAssistantsFactory:
 
     throttler = create_throttler()
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
             BitmexPerpetualRESTPreProcessor(),
-        ])
-    return api_factory
+        ],
+    )
 
 
 def create_throttler() -> AsyncThrottler:
@@ -79,11 +79,9 @@ async def api_request(path: str,
 
         if response.status != 200:
             if return_err:
-                error_response = await response.json()
-                return error_response
-            else:
-                error_response = await response.text()
-                raise IOError(f"Error executing request {method.name} {path}. "
-                              f"HTTP status is {response.status}. "
-                              f"Error: {error_response}")
+                return await response.json()
+            error_response = await response.text()
+            raise IOError(f"Error executing request {method.name} {path}. "
+                          f"HTTP status is {response.status}. "
+                          f"Error: {error_response}")
         return await response.json()

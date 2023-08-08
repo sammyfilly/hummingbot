@@ -136,11 +136,8 @@ class PerformanceMetrics:
         :param short: a list containing pairs of open and closed short position orders
         :return: A list containing PnL for each closed positions
         """
-        pnls = []
-        for lg in long:
-            pnls.append((lg[1].price - lg[0].price) * lg[1].amount)
-        for st in short:
-            pnls.append((st[0].price - st[1].price) * st[1].amount)
+        pnls = [(lg[1].price - lg[0].price) * lg[1].amount for lg in long]
+        pnls.extend((st[0].price - st[1].price) * st[1].amount for st in short)
         return pnls
 
     @staticmethod
@@ -167,9 +164,7 @@ class PerformanceMetrics:
     def divide(value, divisor):
         value = Decimal(str(value))
         divisor = Decimal(str(divisor))
-        if divisor == s_decimal_0:
-            return s_decimal_0
-        return value / divisor
+        return s_decimal_0 if divisor == s_decimal_0 else value / divisor
 
     def _is_trade_fill(self, trade):
         return type(trade) == TradeFill
@@ -216,10 +211,9 @@ class PerformanceMetrics:
             if trade.trade_fee.get("percent") is not None:
                 fee_percent = Decimal(trade.trade_fee.get("percent"))
                 fee_type = trade.trade_fee.get("fee_type")
-        else:  # assume this is Trade object
-            if trade.trade_fee.percent is not None:
-                fee_percent = Decimal(trade.trade_fee.percent)
-                fee_type = trade.trade_fee.type_descriptor_for_json()
+        elif trade.trade_fee.percent is not None:
+            fee_percent = Decimal(trade.trade_fee.percent)
+            fee_type = trade.trade_fee.type_descriptor_for_json()
         if (fee_percent is not None) and (fee_type == DeductedFromReturnsTradeFee.type_descriptor_for_json()):
             impact = Decimal(str(trade.amount)) * Decimal(str(trade.price)) * fee_percent * Decimal("-1")
         return impact

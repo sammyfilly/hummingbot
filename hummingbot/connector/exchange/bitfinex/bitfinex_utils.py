@@ -130,8 +130,8 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     base_asset = convert_to_exchange_token(base_asset)
     quote_asset = convert_to_exchange_token(quote_asset)
 
-    if len(base_asset) > 3:  # Adds ':' delimiter if base asset > 3 characters
-        trading_pair = f"t{base_asset}:{quote_asset}"
-    else:
-        trading_pair = f"t{base_asset}{quote_asset}"
-    return trading_pair
+    return (
+        f"t{base_asset}:{quote_asset}"
+        if len(base_asset) > 3
+        else f"t{base_asset}{quote_asset}"
+    )

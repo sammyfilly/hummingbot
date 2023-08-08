@@ -93,7 +93,16 @@ class GatewayChainApiManager:
                             change_node: str = await self.app.prompt(prompt=f"Do you want to continue to use node url '{node_url}' for {chain}-{network}? (Yes/No) ")
                             if self.app.to_stop_config:
                                 return
-                            if change_node in ["Y", "y", "Yes", "yes", "N", "n", "No", "no"]:
+                            if change_node in {
+                                "Y",
+                                "y",
+                                "Yes",
+                                "yes",
+                                "N",
+                                "n",
+                                "No",
+                                "no",
+                            }:
                                 break
                             self.notify("Invalid input. Please try again or exit config [CTRL + x].\n")
 

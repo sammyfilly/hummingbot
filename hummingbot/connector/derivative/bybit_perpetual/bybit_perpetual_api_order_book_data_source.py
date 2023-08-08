@@ -45,14 +45,15 @@ class BybitPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         general_info = funding_info_response[0]["result"][0]
         predicted_funding = funding_info_response[1]["result"]
 
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(general_info["index_price"])),
             mark_price=Decimal(str(general_info["mark_price"])),
-            next_funding_utc_timestamp=int(pd.Timestamp(general_info["next_funding_time"]).timestamp()),
+            next_funding_utc_timestamp=int(
+                pd.Timestamp(general_info["next_funding_time"]).timestamp()
+            ),
             rate=Decimal(str(predicted_funding["predicted_funding_rate"])),
         )
-        return funding_info
 
     async def listen_for_subscriptions(self):
         """
@@ -237,7 +238,6 @@ class BybitPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 message_queue.put_nowait(info_update)
 
     async def _request_complete_funding_info(self, trading_pair: str):
-        tasks = []
         params = {
             "symbol": await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
         }
@@ -246,12 +246,14 @@ class BybitPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         endpoint_info = CONSTANTS.LATEST_SYMBOL_INFORMATION_ENDPOINT
         url_info = web_utils.get_rest_url_for_endpoint(endpoint=endpoint_info, trading_pair=trading_pair, domain=self._domain)
         limit_id = web_utils.get_rest_api_limit_id_for_endpoint(endpoint_info)
-        tasks.append(rest_assistant.execute_request(
-            url=url_info,
-            throttler_limit_id=limit_id,
-            params=params,
-            method=RESTMethod.GET,
-        ))
+        tasks = [
+            rest_assistant.execute_request(
+                url=url_info,
+                throttler_limit_id=limit_id,
+                params=params,
+                method=RESTMethod.GET,
+            )
+        ]
         endpoint_predicted = CONSTANTS.GET_PREDICTED_FUNDING_RATE_PATH_URL
         url_predicted = web_utils.get_rest_url_for_endpoint(endpoint=endpoint_predicted, trading_pair=trading_pair, domain=self._domain)
         limit_id_predicted = web_utils.get_rest_api_limit_id_for_endpoint(endpoint_predicted, trading_pair)
@@ -263,8 +265,7 @@ class BybitPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             is_auth_required=True
         ))
 
-        responses = await asyncio.gather(*tasks)
-        return responses
+        return await asyncio.gather(*tasks)
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response = await self._request_order_book_snapshot(trading_pair)
@@ -296,24 +297,20 @@ class BybitPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         endpoint = CONSTANTS.ORDER_BOOK_ENDPOINT
         url = web_utils.get_rest_url_for_endpoint(endpoint=endpoint, trading_pair=trading_pair, domain=self._domain)
         limit_id = web_utils.get_rest_api_limit_id_for_endpoint(endpoint)
-        data = await rest_assistant.execute_request(
+        return await rest_assistant.execute_request(
             url=url,
             throttler_limit_id=limit_id,
             params=params,
             method=RESTMethod.GET,
         )
 
-        return data
-
     @staticmethod
     def _get_bids_and_asks_from_rest_msg_data(
         snapshot: List[Dict[str, Union[str, int, float]]]
     ) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
-        bisect_idx = 0
-        for i, row in enumerate(snapshot):
-            if row["side"] == "Sell":
-                bisect_idx = i
-                break
+        bisect_idx = next(
+            (i for i, row in enumerate(snapshot) if row["side"] == "Sell"), 0
+        )
         bids = [
             (float(row["price"]), float(row["size"]))
             for row in snapshot[:bisect_idx]

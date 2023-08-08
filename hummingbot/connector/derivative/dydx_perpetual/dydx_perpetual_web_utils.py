@@ -36,14 +36,15 @@ def build_api_factory(
     time_provider: Optional[Callable] = None,
 ) -> WebAssistantsFactory:
     time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler))
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
-            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            TimeSynchronizerRESTPreProcessor(
+                synchronizer=time_synchronizer, time_provider=time_provider
+            ),
         ],
     )
-    return api_factory
 
 
 async def get_current_server_time(throttler: AsyncThrottler, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> float:
@@ -56,11 +57,8 @@ async def get_current_server_time(throttler: AsyncThrottler, domain: str = CONST
         throttler_limit_id=limit_id,
         method=RESTMethod.GET,
     )
-    server_time = float(response["epoch"])
-
-    return server_time
+    return float(response["epoch"])
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(throttler=throttler)
-    return api_factory
+    return WebAssistantsFactory(throttler=throttler)

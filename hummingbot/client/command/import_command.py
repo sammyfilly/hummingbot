@@ -78,14 +78,13 @@ class ImportCommand:
 
     async def prompt_a_file_name(self  # type: HummingbotApplication
                                  ):
-        example = f"{CONF_PREFIX}{short_strategy_name('pure_market_making')}_{1}.yml"
+        example = f"{CONF_PREFIX}{short_strategy_name('pure_market_making')}_1.yml"
         file_name = await self.app.prompt(prompt=f'Enter path to your strategy file (e.g. "{example}") >>> ')
         if self.app.to_stop_config:
             return
         file_path = STRATEGIES_CONF_DIR_PATH / file_name
         err_msg = validate_strategy_file(file_path)
-        if err_msg is not None:
-            self.notify(f"Error: {err_msg}")
-            return await self.prompt_a_file_name()
-        else:
+        if err_msg is None:
             return file_name
+        self.notify(f"Error: {err_msg}")
+        return await self.prompt_a_file_name()

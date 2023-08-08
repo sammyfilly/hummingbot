@@ -14,11 +14,10 @@ def format_decimal(n):
         with decimal.localcontext() as ctx:
             if isinstance(n, float):
                 n = ctx.create_decimal(n)
-            if isinstance(n, decimal.Decimal):
-                n = round(n, FLOAT_PRINTOUT_PRECISION)
-                return format(n.normalize(), 'f')
-            else:
+            if not isinstance(n, decimal.Decimal):
                 return str(n)
+            n = round(n, FLOAT_PRINTOUT_PRECISION)
+            return format(n.normalize(), 'f')
     except Exception as e:
         logging.getLogger().error(str(e))
 

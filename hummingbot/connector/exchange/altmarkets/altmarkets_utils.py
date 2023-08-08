@@ -69,8 +69,8 @@ def get_new_client_order_id(is_buy: bool, trading_pair: str) -> str:
     symbols = trading_pair.split("-")
     base = symbols[0].upper()
     quote = symbols[1].upper()
-    base_str = f"{base[0:4]}{base[-1]}"
-    quote_str = f"{quote[0:2]}{quote[-1]}"
+    base_str = f"{base[:4]}{base[-1]}"
+    quote_str = f"{quote[:2]}{quote[-1]}"
     return f"{Constants.HBOT_BROKER_ID}-{side}{base_str}{quote_str}{get_tracking_nonce()}"
 
 

@@ -90,7 +90,7 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
                                      else order_update.get("avg_price", "0")))
         self.executed_amount_base = Decimal(str(order_update["executed_volume"]))
         self.executed_amount_quote = (executed_price * self.executed_amount_base) \
-            if self.executed_amount_base > s_decimal_0 else s_decimal_0
+                if self.executed_amount_base > s_decimal_0 else s_decimal_0
         if self.executed_amount_base <= s_decimal_0:
             # No trades executed yet.
             return False
@@ -99,9 +99,7 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
             # trade already recorded
             return False
         self.trade_id_set.add(trade_id)
-        # Check if trade fee has been sent
-        reported_fee_pct = order_update.get("maker_fee")
-        if reported_fee_pct:
+        if reported_fee_pct := order_update.get("maker_fee"):
             self.fee_paid = Decimal(str(reported_fee_pct)) * self.executed_amount_base
         else:
             self.fee_paid = order_update.get("trade_fee") * self.executed_amount_base
@@ -137,9 +135,7 @@ class AltmarketsInFlightOrder(InFlightOrderBase):
             return False
         trade_update["exchange_trade_id"] = trade_update["id"]
         self.trade_id_set.add(trade_id)
-        # Check if trade fee has been sent
-        reported_fee_pct = trade_update.get("fee")
-        if reported_fee_pct:
+        if reported_fee_pct := trade_update.get("fee"):
             self.fee_paid = Decimal(str(reported_fee_pct)) * self.executed_amount_base
         else:
             self.fee_paid = trade_update.get("trade_fee") * self.executed_amount_base

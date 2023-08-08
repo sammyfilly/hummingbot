@@ -45,14 +45,15 @@ class BitgetPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         funding_info_response = await self._request_complete_funding_info(trading_pair)
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(funding_info_response["amount"]),
             mark_price=Decimal(funding_info_response["markPrice"]),
-            next_funding_utc_timestamp=int(int(funding_info_response["fundingTime"]) * 1e-3),
+            next_funding_utc_timestamp=int(
+                int(funding_info_response["fundingTime"]) * 1e-3
+            ),
             rate=Decimal(funding_info_response["fundingRate"]),
         )
-        return funding_info
 
     async def _process_websocket_messages(self, websocket_assistant: WSAssistant):
         while True:
@@ -173,18 +174,19 @@ class BitgetPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             CONSTANTS.MARK_PRICE_PATH_URL,
             CONSTANTS.FUNDING_SETTLEMENT_TIME_PATH_URL
         ]
-        tasks = []
-        for endpoint in endpoints:
-            tasks.append(rest_assistant.execute_request(
+        tasks = [
+            rest_assistant.execute_request(
                 url=web_utils.get_rest_url_for_endpoint(endpoint=endpoint),
                 throttler_limit_id=endpoint,
                 params=params,
                 method=RESTMethod.GET,
-            ))
+            )
+            for endpoint in endpoints
+        ]
         results = await safe_gather(*tasks)
         funding_info = {}
         for result in results:
-            funding_info.update(result["data"])
+            funding_info |= result["data"]
         return funding_info
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
@@ -203,16 +205,14 @@ class BitgetPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     trading_pair=trading_pair
                 )
 
-                for channel in [
-                    self._diff_messages_queue_key,
-                    self._trade_messages_queue_key,
-                    self._funding_info_messages_queue_key,
-                ]:
-                    payloads.append({
-                        "instType": "mc",
-                        "channel": channel,
-                        "instId": symbol
-                    })
+                payloads.extend(
+                    {"instType": "mc", "channel": channel, "instId": symbol}
+                    for channel in [
+                        self._diff_messages_queue_key,
+                        self._trade_messages_queue_key,
+                        self._funding_info_messages_queue_key,
+                    ]
+                )
             final_payload = {
                 "op": "subscribe",
                 "args": payloads,
@@ -241,14 +241,12 @@ class BitgetPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
-        data = await rest_assistant.execute_request(
+        return await rest_assistant.execute_request(
             url=web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_ENDPOINT),
             params=params,
             method=RESTMethod.GET,
             throttler_limit_id=CONSTANTS.ORDER_BOOK_ENDPOINT,
         )
-
-        return data
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response: Dict[str, Any] = await self._request_order_book_snapshot(trading_pair)
@@ -259,8 +257,8 @@ class BitgetPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         order_book_message_content = {
             "trading_pair": trading_pair,
             "update_id": update_id,
-            "bids": [(price, amount) for price, amount in snapshot_data.get("bids", [])],
-            "asks": [(price, amount) for price, amount in snapshot_data.get("asks", [])],
+            "bids": list(snapshot_data.get("bids", [])),
+            "asks": list(snapshot_data.get("asks", [])),
         }
         snapshot_msg: OrderBookMessage = OrderBookMessage(
             OrderBookMessageType.SNAPSHOT,

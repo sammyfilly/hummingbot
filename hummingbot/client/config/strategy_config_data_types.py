@@ -122,12 +122,11 @@ class BaseTradingStrategyMakerTakerConfigMap(BaseStrategyConfigMap):
     def trading_pair_prompt(cls, model_instance: 'BaseTradingStrategyMakerTakerConfigMap', is_maker: bool) -> str:
         if is_maker:
             exchange = model_instance.maker_market
-            example = AllConnectorSettings.get_example_pairs().get(exchange)
             market_type = "maker"
         else:
             exchange = model_instance.taker_market
-            example = AllConnectorSettings.get_example_pairs().get(exchange)
             market_type = "taker"
+        example = AllConnectorSettings.get_example_pairs().get(exchange)
         return (
             f"Enter the token trading pair you would like to trade on {market_type} market:"
             f" {exchange}{f' (e.g. {example})' if example else ''}"

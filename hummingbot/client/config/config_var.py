@@ -70,7 +70,7 @@ class ConfigVar:
         """
         assert callable(self._validator)
         assert callable(self._on_validated)
-        if self.required and (value is None or value == ""):
+        if self.required and (value is None or not value):
             return "Value is required."
         err_msg = None
         if inspect.iscoroutinefunction(self._validator):

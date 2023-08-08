@@ -26,8 +26,7 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
     :return: True if the trading pair is enabled, False otherwise
     """
     status = exchange_info.get("status")
-    valid = status is not None and status in ["Open"]
-    return valid
+    return status is not None and status in ["Open"]
 
 
 class KucoinPerpetualConfigMap(BaseConnectorConfigMap):

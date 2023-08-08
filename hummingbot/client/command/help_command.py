@@ -17,8 +17,7 @@ class HelpCommand:
                 subparsers_actions = [
                     action for action in parser if isinstance(action, argparse._SubParsersAction)]
                 for subparsers_action in subparsers_actions:
-                    subparser = subparsers_action.choices.get(step)
-                    if subparser:
+                    if subparser := subparsers_action.choices.get(step):
                         last_subparser = subparser
                         parser = subparser._actions
             self.notify(last_subparser.format_help())

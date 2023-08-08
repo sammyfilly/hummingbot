@@ -84,11 +84,9 @@ class CreateCommand:
     async def get_strategy_name(
         self,  # type: HummingbotApplication
     ) -> Optional[str]:
-        strategy = None
         strategy_config = ClientConfigAdapter(BaseStrategyConfigMap.construct())
         await self.prompt_for_model_config(strategy_config)
-        if not self.app.to_stop_config:
-            strategy = strategy_config.strategy
+        strategy = strategy_config.strategy if not self.app.to_stop_config else None
         return strategy
 
     async def prompt_for_model_config(
@@ -114,10 +112,7 @@ class CreateCommand:
         config_map_backup = copy.deepcopy(config_map)
         # assign default values and reset those not required
         for config in config_map.values():
-            if config.required:
-                config.value = config.default
-            else:
-                config.value = None
+            config.value = config.default if config.required else None
         for config in config_map.values():
             if config.prompt_on_new and config.required:
                 if not self.app.to_stop_config:

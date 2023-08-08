@@ -50,15 +50,13 @@ class ETHKeyFileSecretManger(BaseSecretsManager):
         value_bytes = value.encode()
         keyfile_json = _create_v3_keyfile_json(value_bytes, password_bytes)
         json_str = json.dumps(keyfile_json)
-        encrypted_value = binascii.hexlify(json_str.encode()).decode()
-        return encrypted_value
+        return binascii.hexlify(json_str.encode()).decode()
 
     def decrypt_secret_value(self, attr: str, value: str) -> str:
         if self._password is None:
             raise ValueError(f"Could not decrypt secret attribute {attr} because no password was provided.")
         value = binascii.unhexlify(value)
-        decrypted_value = Account.decrypt(value.decode(), self._password).decode()
-        return decrypted_value
+        return Account.decrypt(value.decode(), self._password).decode()
 
 
 def store_password_verification(secrets_manager: BaseSecretsManager):

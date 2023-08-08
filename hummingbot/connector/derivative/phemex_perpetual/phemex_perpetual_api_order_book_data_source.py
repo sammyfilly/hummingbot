@@ -52,22 +52,22 @@ class PhemexPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         symbol_info: Dict[str, Any] = (await self._request_complete_funding_info(trading_pair))["result"]
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(symbol_info["indexPriceRp"]),
             mark_price=Decimal(symbol_info["markPriceRp"]),
             next_funding_utc_timestamp=self._next_funding_time(),
             rate=Decimal(symbol_info["fundingRateRr"]),
         )
-        return funding_info
 
     async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
         ex_trading_pair = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
 
         params = {"symbol": ex_trading_pair}
 
-        data = await self._connector._api_get(path_url=CONSTANTS.SNAPSHOT_REST_URL, params=params)
-        return data
+        return await self._connector._api_get(
+            path_url=CONSTANTS.SNAPSHOT_REST_URL, params=params
+        )
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response: Dict[str, Any] = (await self._request_order_book_snapshot(trading_pair))["result"]
@@ -215,10 +215,11 @@ class PhemexPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def _request_complete_funding_info(self, trading_pair: str):
         ex_trading_pair = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
-        data = await self._connector._api_get(
-            path_url=CONSTANTS.MARK_PRICE_URL, params={"symbol": ex_trading_pair}, is_auth_required=False
+        return await self._connector._api_get(
+            path_url=CONSTANTS.MARK_PRICE_URL,
+            params={"symbol": ex_trading_pair},
+            is_auth_required=False,
         )
-        return data
 
     def _next_funding_time(self) -> int:
         """

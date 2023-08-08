@@ -386,13 +386,15 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
     async def _update_all_funding_payments(self, fire_event_on_new: bool) -> bool:
         success = False
         try:
-            tasks = []
-            for trading_pair in self.trading_pairs:
-                tasks.append(
-                    asyncio.create_task(
-                        self._update_funding_payment(trading_pair=trading_pair, fire_event_on_new=fire_event_on_new)
+            tasks = [
+                asyncio.create_task(
+                    self._update_funding_payment(
+                        trading_pair=trading_pair,
+                        fire_event_on_new=fire_event_on_new,
                     )
                 )
+                for trading_pair in self.trading_pairs
+            ]
             responses: List[bool] = await safe_gather(*tasks)
             success = all(responses)
         except asyncio.CancelledError:

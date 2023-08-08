@@ -49,20 +49,23 @@ def build_api_factory(
             domain=domain,
         )
     )
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
-            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            TimeSynchronizerRESTPreProcessor(
+                synchronizer=time_synchronizer, time_provider=time_provider
+            ),
             PhemexPerpetualRESTPreProcessor(),
         ],
     )
-    return api_factory
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(throttler=throttler, rest_pre_processors=[PhemexPerpetualRESTPreProcessor()])
-    return api_factory
+    return WebAssistantsFactory(
+        throttler=throttler,
+        rest_pre_processors=[PhemexPerpetualRESTPreProcessor()],
+    )
 
 
 def create_throttler() -> AsyncThrottler:
@@ -81,9 +84,7 @@ async def get_current_server_time(
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
     )
-    server_time = response["data"]["serverTime"]
-
-    return server_time
+    return response["data"]["serverTime"]
 
 
 def is_exchange_information_valid(rule: Dict[str, Any]) -> bool:
@@ -94,8 +95,4 @@ def is_exchange_information_valid(rule: Dict[str, Any]) -> bool:
 
     :return: True if the trading pair is enabled, False otherwise
     """
-    if rule["type"] == "PerpetualV2" and rule["status"] == "Listed":
-        valid = True
-    else:
-        valid = False
-    return valid
+    return rule["type"] == "PerpetualV2" and rule["status"] == "Listed"

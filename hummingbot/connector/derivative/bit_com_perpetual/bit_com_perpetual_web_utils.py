@@ -34,26 +34,29 @@ def rest_url(path_url: str, domain: str = "bit_com_perpetual"):
 
 
 def wss_url(domain: str = "bit_com_perpetual"):
-    base_ws_url = CONSTANTS.PERPETUAL_WS_URL if domain == "bit_com_perpetual" else CONSTANTS.TESTNET_WS_URL
-    return base_ws_url
+    return (
+        CONSTANTS.PERPETUAL_WS_URL
+        if domain == "bit_com_perpetual"
+        else CONSTANTS.TESTNET_WS_URL
+    )
 
 
 def build_api_factory(
         throttler: Optional[AsyncThrottler] = None,
         auth: Optional[AuthBase] = None) -> WebAssistantsFactory:
     throttler = throttler or create_throttler()
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         rest_pre_processors=[BitComPerpetualRESTPreProcessor()],
-        auth=auth)
-    return api_factory
+        auth=auth,
+    )
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
-        rest_pre_processors=[BitComPerpetualRESTPreProcessor()])
-    return api_factory
+        rest_pre_processors=[BitComPerpetualRESTPreProcessor()],
+    )
 
 
 def create_throttler() -> AsyncThrottler:
@@ -75,8 +78,4 @@ def is_exchange_information_valid(rule: Dict[str, Any]) -> bool:
 
     :return: True if the trading pair is enabled, False otherwise
     """
-    if rule["category"] == "future" and rule["active"]:
-        valid = True
-    else:
-        valid = False
-    return valid
+    return bool(rule["category"] == "future" and rule["active"])

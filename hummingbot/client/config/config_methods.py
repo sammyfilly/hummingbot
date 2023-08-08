@@ -18,7 +18,4 @@ def using_exchange(exchange: str) -> Callable:
 
 
 def strategy_config_schema_encoder(o):
-    if callable(o):
-        return None
-    else:
-        return pydantic_encoder(o)
+    return None if callable(o) else pydantic_encoder(o)

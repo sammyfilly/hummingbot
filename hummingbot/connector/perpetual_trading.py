@@ -107,10 +107,17 @@ class PerpetualTrading:
         """
         pos_key = ""
         if mode is not None:
-            pos_key = f"{trading_pair}{side.name}" if mode == PositionMode.HEDGE else trading_pair
+            return (
+                f"{trading_pair}{side.name}"
+                if mode == PositionMode.HEDGE
+                else trading_pair
+            )
         else:
-            pos_key = f"{trading_pair}{side.name}" if self._position_mode == PositionMode.HEDGE else trading_pair
-        return pos_key
+            return (
+                f"{trading_pair}{side.name}"
+                if self._position_mode == PositionMode.HEDGE
+                else trading_pair
+            )
 
     def get_position(self, trading_pair: str, side: PositionSide = None) -> Optional[Position]:
         """
