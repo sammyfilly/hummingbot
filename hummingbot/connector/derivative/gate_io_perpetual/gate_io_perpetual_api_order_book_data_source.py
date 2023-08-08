@@ -45,14 +45,13 @@ class GateIoPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         funding_info_response = await self._request_complete_funding_info(trading_pair)
         symbol_info: Dict[str, Any] = funding_info_response
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(symbol_info["index_price"])),
             mark_price=Decimal(str(symbol_info["mark_price"])),
             next_funding_utc_timestamp=int(symbol_info["funding_next_apply"]),
             rate=Decimal(str(symbol_info["funding_rate_indicative"])),
         )
-        return funding_info
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         snapshot_response: Dict[str, Any] = await self._request_order_book_snapshot(trading_pair)
@@ -216,9 +215,10 @@ class GateIoPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         ex_trading_pair = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
 
         rest_assistant = await self._api_factory.get_rest_assistant()
-        data = await rest_assistant.execute_request(
-            url=web_utils.public_rest_url(endpoint=CONSTANTS.MARK_PRICE_URL.format(id=ex_trading_pair)),
+        return await rest_assistant.execute_request(
+            url=web_utils.public_rest_url(
+                endpoint=CONSTANTS.MARK_PRICE_URL.format(id=ex_trading_pair)
+            ),
             method=RESTMethod.GET,
             throttler_limit_id=CONSTANTS.MARK_PRICE_URL,
         )
-        return data

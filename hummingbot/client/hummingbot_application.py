@@ -192,13 +192,13 @@ class HummingbotApplication(*commands):
             num_shortcut_args = len(shortcut.arguments)
             if len(command_split) == num_shortcut_args + 1:
                 # notify each expansion if there's more than 1
-                verbose = True if len(shortcut.output) > 1 else False
+                verbose = len(shortcut.output) > 1
                 # do argument replace and re-enter this function with the expanded command
                 for output_cmd in shortcut.output:
                     final_cmd = output_cmd
                     for i in range(1, num_shortcut_args + 1):
                         final_cmd = final_cmd.replace(f'${i}', command_split[i])
-                    if verbose is True:
+                    if verbose:
                         self.notify(f'  >>> {final_cmd}')
                     self._handle_command(final_cmd)
             else:
@@ -218,11 +218,7 @@ class HummingbotApplication(*commands):
         else:
             command_split = raw_command.split()
         try:
-            if self.placeholder_mode:
-                pass
-            elif len(command_split) == 0:
-                pass
-            else:
+            if not self.placeholder_mode and command_split:
                 # Check if help is requested, if yes, print & terminate
                 if len(command_split) > 1 and any(arg in ["-h", "--help"] for arg in command_split[1:]):
                     self.help(raw_command)
@@ -254,8 +250,9 @@ class HummingbotApplication(*commands):
 
             for market_name, market in self.markets.items():
                 cancellation_results = await market.cancel_all(kill_timeout)
-                uncancelled = list(filter(lambda cr: cr.success is False, cancellation_results))
-                if len(uncancelled) > 0:
+                if uncancelled := list(
+                    filter(lambda cr: cr.success is False, cancellation_results)
+                ):
                     success = False
                     uncancelled_order_ids = list(map(lambda cr: cr.order_id, uncancelled))
                     self.notify("\nFailed to cancel the following orders on %s:\n%s" % (

@@ -24,7 +24,7 @@ class GateIoPerpetualAuth(AuthBase):
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         headers = {}
         if request.headers is not None:
-            headers.update(request.headers)
+            headers |= request.headers
         headers.update(self._get_auth_headers(request))
         request.headers = headers
         return request
@@ -40,12 +40,11 @@ class GateIoPerpetualAuth(AuthBase):
         :return: a dictionary with headers
         """
         sig = self._sign_payload_ws(payload['channel'], payload['event'], payload['time'])
-        headers = {
+        return {
             "method": "api_key",
             "KEY": f"{self.api_key}",
             "SIGN": f"{sig}",
         }
-        return headers
 
     def _get_auth_headers(self, request: RESTRequest) -> Dict[str, Any]:
         """
@@ -54,14 +53,13 @@ class GateIoPerpetualAuth(AuthBase):
         :return: a dictionary with headers
         """
         sign, ts = self._sign_payload(request)
-        headers = {
+        return {
             "X-Gate-Channel-Id": CONSTANTS.HBOT_BROKER_ID,
             "KEY": f"{self.api_key}",
             "Timestamp": f"{ts}",
             "SIGN": f"{sign}",
             "Content-Type": "application/json",
         }
-        return headers
 
     def _sign_payload_ws(self, channel, event, time) -> str:
         return self._sign(f"channel={channel}&event={event}&time={time}")
@@ -81,9 +79,7 @@ class GateIoPerpetualAuth(AuthBase):
         body_hash = m.hexdigest()
 
         if r.params:
-            qs = []
-            for k, v in r.params.items():
-                qs.append(f"{k}={v}")
+            qs = [f"{k}={v}" for k, v in r.params.items()]
             query_string = "&".join(qs)
 
         s = f'{r.method}\n{path}\n{query_string}\n{body_hash}\n{ts}'

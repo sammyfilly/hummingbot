@@ -142,14 +142,16 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
             auth=self._auth)
 
     async def _make_trading_rules_request(self) -> Any:
-        exchange_info = await self._api_get(path_url=self.trading_rules_request_path,
-                                            params={"currency": CONSTANTS.CURRENCY})
-        return exchange_info
+        return await self._api_get(
+            path_url=self.trading_rules_request_path,
+            params={"currency": CONSTANTS.CURRENCY},
+        )
 
     async def _make_trading_pairs_request(self) -> Any:
-        exchange_info = await self._api_get(path_url=self.trading_pairs_request_path,
-                                            params={"currency": CONSTANTS.CURRENCY})
-        return exchange_info
+        return await self._api_get(
+            path_url=self.trading_pairs_request_path,
+            params={"currency": CONSTANTS.CURRENCY},
+        )
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         # TODO: implement this method correctly for the connector
@@ -209,7 +211,7 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
                  price: Decimal = s_decimal_NaN,
                  is_maker: Optional[bool] = None) -> TradeFeeBase:
         is_maker = is_maker or False
-        fee = build_trade_fee(
+        return build_trade_fee(
             self.name,
             is_maker,
             base_currency=base_currency,
@@ -219,7 +221,6 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
             amount=amount,
             price=price,
         )
-        return fee
 
     async def _update_trading_fees(self):
         """
@@ -236,9 +237,7 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
             path_url=CONSTANTS.CANCEL_ORDER_URL,
             data=api_params,
             is_auth_required=True)
-        if cancel_result['data']['num_cancelled'] == 1:
-            return True
-        return False
+        return cancel_result['data']['num_cancelled'] == 1
 
     async def _place_order(
             self,
@@ -282,7 +281,7 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
         # the mitigation proposal is to collect all orders in one shot, then parse them
         # Note that this is limited to 100 orders (pagination)
         all_trades_updates: List[TradeUpdate] = []
-        if len(orders) > 0:
+        if orders:
             try:
                 all_trades_updates: List[TradeUpdate] = await self._all_trade_updates(orders=orders)
             except asyncio.CancelledError:
@@ -297,7 +296,7 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _all_trade_updates(self, orders: List[InFlightOrder]) -> List[TradeUpdate]:
         trade_updates = []
-        if len(orders) > 0:
+        if orders:
             trading_pairs_to_order_map: Dict[str, Dict[str, Any]] = defaultdict(lambda: {})
             for order in orders:
                 trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
@@ -355,51 +354,6 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
         raise Exception("Developer: This method should not be called, it is obsoleted for bit_com")
-        trade_updates = []
-        try:
-            exchange_order_id = await order.get_exchange_order_id()
-            trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
-            all_fills_response = await self._api_get(
-                path_url=CONSTANTS.ACCOUNT_TRADE_LIST_URL,
-                params={
-                    "currency": CONSTANTS.CURRENCY,
-                    "instrument_id": trading_pair,
-                },
-                is_auth_required=True)
-
-            for trade in all_fills_response["data"]:
-                order_id = str(trade.get("order_id"))
-                if order_id == exchange_order_id:
-                    position_side = "LONG" if trade["side"] == "buy" else "SHORT"
-                    position_action = (PositionAction.OPEN
-                                       if (order.trade_type is TradeType.BUY and position_side == "LONG"
-                                           or order.trade_type is TradeType.SELL and position_side == "SHORT")
-                                       else PositionAction.CLOSE)
-                    fee_asset = order.quote_asset
-                    fee = TradeFeeBase.new_perpetual_fee(
-                        fee_schema=self.trade_fee_schema(),
-                        position_action=position_action,
-                        percent_token=fee_asset,
-                        flat_fees=[TokenAmount(amount=Decimal(trade["fee"]), token=fee_asset)]
-                    )
-                    trade_update: TradeUpdate = TradeUpdate(
-                        trade_id=str(trade["trade_id"]),
-                        client_order_id=order.client_order_id,
-                        exchange_order_id=trade["order_id"],
-                        trading_pair=order.trading_pair,
-                        fill_timestamp=trade["created_at"] * 1e-3,
-                        fill_price=Decimal(trade["price"]),
-                        fill_base_amount=Decimal(trade["qty"]),
-                        fill_quote_amount=Decimal(trade["price"]) * Decimal(trade["qty"]),
-                        fee=fee,
-                    )
-                    trade_updates.append(trade_update)
-
-        except asyncio.TimeoutError:
-            raise IOError(f"Skipped order update with order fills for {order.client_order_id} "
-                          "- waiting for exchange order id.")
-
-        return trade_updates
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
@@ -528,16 +482,16 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
         pos_key = self._perpetual_trading.position_key(trading_pair, position_side)
         entry_price = Decimal(str(position_msg["avg_price"]))
         position = self._perpetual_trading.get_position(trading_pair, position_side)
-        if position is not None:
-            if amount == Decimal("0"):
-                self._perpetual_trading.remove_position(pos_key)
-            else:
-                position.update_position(position_side=position_side,
-                                         unrealized_pnl=Decimal(position_msg['position_session_upl']),
-                                         entry_price=entry_price,
-                                         amount=amount)
-        else:
+        if position is None:
             await self._update_positions()
+
+        elif amount == Decimal("0"):
+            self._perpetual_trading.remove_position(pos_key)
+        else:
+            position.update_position(position_side=position_side,
+                                     unrealized_pnl=Decimal(position_msg['position_session_upl']),
+                                     entry_price=entry_price,
+                                     amount=amount)
 
     def _process_order_message(self, order_msg: Dict[str, Any]):
         """
@@ -622,8 +576,7 @@ class BitComPerpetualDerivative(PerpetualDerivativePyBase):
         response = await self._api_get(
             path_url=CONSTANTS.TICKER_PRICE_CHANGE_URL,
             params=params)
-        price = float(response["data"]["last_price"])
-        return price
+        return float(response["data"]["last_price"])
 
     def _resolve_trading_pair_symbols_duplicate(self, mapping: bidict, new_exchange_symbol: str, base: str, quote: str):
         """Resolves name conflicts provoked by futures contracts.

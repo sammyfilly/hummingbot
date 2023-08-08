@@ -71,7 +71,7 @@ class AscendExAPIUserStreamDataSource(UserStreamTrackerDataSource):
     async def _process_event_message(
         self, event_message: Dict[str, Any], queue: asyncio.Queue, websocket_assistant: WSAssistant
     ):
-        if len(event_message) > 0:
+        if event_message:
             message_type = event_message.get("m")
             if message_type == "ping":
                 pong_payloads = {"op": "pong"}

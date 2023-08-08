@@ -17,8 +17,8 @@ LIMIT_FEE = 0.015
 
 # API Base URLs
 DYDX_REST_BASE_URL = "https://api.dydx.exchange"
-DYDX_REST_URL = "{}/{}".format(DYDX_REST_BASE_URL, API_VERSION)
-DYDX_WS_URL = "wss://api.dydx.exchange/{}/ws".format(API_VERSION)
+DYDX_REST_URL = f"{DYDX_REST_BASE_URL}/{API_VERSION}"
+DYDX_WS_URL = f"wss://api.dydx.exchange/{API_VERSION}/ws"
 
 # Public REST Endpoints
 

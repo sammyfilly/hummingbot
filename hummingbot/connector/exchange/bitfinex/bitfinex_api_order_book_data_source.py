@@ -147,8 +147,7 @@ class BitfinexAPIOrderBookDataSource(OrderBookTrackerDataSource):
                         "USDVolume": item["volume"] * item["price"] * converters[item["quoteAsset"]]
                     }
                 )
-                if item["baseAsset"] not in converters:
-                    converters[item["baseAsset"]] = item["price"] * converters[item["quoteAsset"]]
+                converters[item["baseAsset"]] = item["price"] * converters[item["quoteAsset"]]
                 continue
 
             prices.append({
@@ -196,8 +195,7 @@ class BitfinexAPIOrderBookDataSource(OrderBookTrackerDataSource):
     async def _get_response(self, ws: websockets.WebSocketClientProtocol) -> AsyncIterable[str]:
         try:
             while True:
-                msg: str = await asyncio.wait_for(ws.recv(), timeout=self.MESSAGE_TIMEOUT)
-                yield msg
+                yield await asyncio.wait_for(ws.recv(), timeout=self.MESSAGE_TIMEOUT)
         except asyncio.TimeoutError:
             self.logger().warning("WebSocket ping timed out. Going to reconnect...")
             return
@@ -256,7 +254,7 @@ class BitfinexAPIOrderBookDataSource(OrderBookTrackerDataSource):
     async def get_last_traded_prices(cls, trading_pairs: List[str]) -> Dict[str, float]:
         tasks = [cls.get_last_traded_price(t_pair) for t_pair in trading_pairs]
         results = await safe_gather(*tasks)
-        return {t_pair: result for t_pair, result in zip(trading_pairs, results)}
+        return dict(zip(trading_pairs, results))
 
     @classmethod
     async def get_last_traded_price(cls, trading_pair: str) -> float:
@@ -397,8 +395,7 @@ class BitfinexAPIOrderBookDataSource(OrderBookTrackerDataSource):
                         await asyncio.wait_for(ws.recv(), timeout=self.MESSAGE_TIMEOUT)  # snapshot
 
                         async for raw_msg in self._get_response(ws):
-                            msg = self._prepare_trade(raw_msg)
-                            if msg:
+                            if msg := self._prepare_trade(raw_msg):
                                 msg_book: OrderBookMessage = BitfinexOrderBook.trade_message_from_exchange(
                                     msg,
                                     metadata={"symbol": f"{trading_pair}"}

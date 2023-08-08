@@ -32,13 +32,10 @@ class TimeSynchronizer:
     @property
     def time_offset_ms(self) -> float:
         if not self._time_offset_ms:
-            offset = (self._time() - self._current_seconds_counter()) * 1e3
-        else:
-            median = numpy.median(self._time_offset_ms)
-            weighted_average = numpy.average(self._time_offset_ms, weights=range(1, len(self._time_offset_ms) * 2 + 1, 2))
-            offset = numpy.mean([median, weighted_average])
-
-        return offset
+            return (self._time() - self._current_seconds_counter()) * 1e3
+        median = numpy.median(self._time_offset_ms)
+        weighted_average = numpy.average(self._time_offset_ms, weights=range(1, len(self._time_offset_ms) * 2 + 1, 2))
+        return numpy.mean([median, weighted_average])
 
     def add_time_offset_ms_sample(self, offset: float):
         self._time_offset_ms.append(offset)

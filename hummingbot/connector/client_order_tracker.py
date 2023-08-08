@@ -74,7 +74,7 @@ class ClientOrderTracker:
         """
         Returns orders that are no longer actively tracked.
         """
-        return {client_order_id: order for client_order_id, order in self._cached_orders.items()}
+        return dict(self._cached_orders.items())
 
     @property
     def all_orders(self) -> Dict[str, InFlightOrder]:
@@ -95,11 +95,14 @@ class ClientOrderTracker:
         """
         Same as `all_fillable_orders`, but the orders are mapped by exchange order ID.
         """
-        orders_map = {
+        return {
             order.exchange_order_id: order
-            for order in chain(self.active_orders.values(), self.cached_orders.values(), self.lost_orders.values())
+            for order in chain(
+                self.active_orders.values(),
+                self.cached_orders.values(),
+                self.lost_orders.values(),
+            )
         }
-        return orders_map
 
     @property
     def all_updatable_orders(self) -> Dict[str, InFlightOrder]:
@@ -113,10 +116,12 @@ class ClientOrderTracker:
         """
         Same as `all_updatable_orders`, but the orders are mapped by exchange order ID.
         """
-        orders_map = {
-            order.exchange_order_id: order for order in chain(self.active_orders.values(), self.lost_orders.values())
+        return {
+            order.exchange_order_id: order
+            for order in chain(
+                self.active_orders.values(), self.lost_orders.values()
+            )
         }
-        return orders_map
 
     @property
     def current_timestamp(self) -> int:
@@ -130,7 +135,7 @@ class ClientOrderTracker:
         """
         Returns a dictionary of all orders marked as failed after not being found more times than the configured limit
         """
-        return {client_order_id: order for client_order_id, order in self._lost_orders.items()}
+        return dict(self._lost_orders.items())
 
     @property
     def lost_order_count_limit(self) -> int:
@@ -203,9 +208,7 @@ class ClientOrderTracker:
     def process_trade_update(self, trade_update: TradeUpdate):
         client_order_id: str = trade_update.client_order_id
 
-        tracked_order: Optional[InFlightOrder] = self.all_fillable_orders.get(client_order_id)
-
-        if tracked_order:
+        if tracked_order := self.all_fillable_orders.get(client_order_id):
             previous_executed_amount_base: Decimal = tracked_order.executed_amount_base
 
             updated: bool = tracked_order.update_with_trade_update(trade_update)
@@ -271,11 +274,9 @@ class ClientOrderTracker:
             self.logger().error("OrderUpdate does not contain any client_order_id or exchange_order_id", exc_info=True)
             return
 
-        tracked_order: Optional[InFlightOrder] = self.fetch_order(
+        if tracked_order := self.fetch_order(
             order_update.client_order_id, order_update.exchange_order_id
-        )
-
-        if tracked_order:
+        ):
             if order_update.new_state == OrderState.FILLED and not tracked_order.is_done:
                 try:
                     await asyncio.wait_for(
@@ -293,16 +294,15 @@ class ClientOrderTracker:
             if updated:
                 self._trigger_order_creation(tracked_order, previous_state, order_update.new_state)
                 self._trigger_order_completion(tracked_order, order_update)
+        elif lost_order := self.fetch_lost_order(
+            client_order_id=order_update.client_order_id,
+            exchange_order_id=order_update.exchange_order_id,
+        ):
+            if order_update.new_state in [OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED]:
+                # If the order officially reaches a final state after being lost it should be removed from the lost list
+                del self._lost_orders[lost_order.client_order_id]
         else:
-            lost_order = self.fetch_lost_order(
-                client_order_id=order_update.client_order_id, exchange_order_id=order_update.exchange_order_id
-            )
-            if lost_order:
-                if order_update.new_state in [OrderState.CANCELED, OrderState.FILLED, OrderState.FAILED]:
-                    # If the order officially reaches a final state after being lost it should be removed from the lost list
-                    del self._lost_orders[lost_order.client_order_id]
-            else:
-                self.logger().debug(f"Order is not/no longer being tracked ({order_update})")
+            self.logger().debug(f"Order is not/no longer being tracked ({order_update})")
 
     def _trigger_created_event(self, order: InFlightOrder):
         event_tag = MarketEvent.BuyOrderCreated if order.trade_type is TradeType.BUY else MarketEvent.SellOrderCreated
@@ -439,5 +439,4 @@ class ClientOrderTracker:
 
     @staticmethod
     def _restore_order_from_json(serialized_order: Dict):
-        order = InFlightOrder.from_json(serialized_order)
-        return order
+        return InFlightOrder.from_json(serialized_order)

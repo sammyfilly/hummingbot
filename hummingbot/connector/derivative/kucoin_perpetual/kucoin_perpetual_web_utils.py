@@ -27,20 +27,20 @@ def build_api_factory(
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
     time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler))
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
-            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            TimeSynchronizerRESTPreProcessor(
+                synchronizer=time_synchronizer, time_provider=time_provider
+            ),
             HeadersContentRESTPreProcessor(),
         ],
     )
-    return api_factory
 
 
 def create_throttler(trading_pairs: List[str] = None) -> AsyncThrottler:
-    throttler = AsyncThrottler(CONSTANTS.RATE_LIMITS)
-    return throttler
+    return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
 async def get_current_server_time(
@@ -84,8 +84,7 @@ def payload_from_message(message: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(throttler=throttler)
-    return api_factory
+    return WebAssistantsFactory(throttler=throttler)
 
 
 def get_rest_url_for_endpoint(
@@ -97,8 +96,7 @@ def get_rest_url_for_endpoint(
 
 
 def get_pair_specific_limit_id(base_limit_id: str, trading_pair: str) -> str:
-    limit_id = f"{base_limit_id}-{trading_pair}"
-    return limit_id
+    return f"{base_limit_id}-{trading_pair}"
 
 
 def get_rest_api_limit_id_for_endpoint(endpoint: Dict[str, str]) -> str:
@@ -155,11 +153,9 @@ async def api_request(path: str,
 
         if response.status != 200:
             if return_err:
-                error_response = await response.json()
-                return error_response
-            else:
-                error_response = await response.text()
-                raise IOError(f"Error executing request {method.name} {path}. "
-                              f"HTTP status is {response.status}. "
-                              f"Error: {error_response}")
+                return await response.json()
+            error_response = await response.text()
+            raise IOError(f"Error executing request {method.name} {path}. "
+                          f"HTTP status is {response.status}. "
+                          f"Error: {error_response}")
         return await response.json()

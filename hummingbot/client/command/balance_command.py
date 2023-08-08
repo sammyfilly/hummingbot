@@ -37,7 +37,7 @@ class BalanceCommand:
         elif option in OPTIONS:
             if option == "limit":
                 balance_asset_limit = self.client_config_map.balance_asset_limit
-                if args is None or len(args) == 0:
+                if args is None or not args:
                     safe_ensure_future(self.show_asset_limits())
                     return
                 if len(args) != 3 or validate_exchange(args[0]) is not None or validate_decimal(args[2]) is not None:
@@ -59,7 +59,7 @@ class BalanceCommand:
 
             elif option == "paper":
                 paper_balances = self.client_config_map.paper_trade.paper_trade_account_balance
-                if args is None or len(args) == 0:
+                if args is None or not args:
                     safe_ensure_future(self.show_paper_account_balance())
                     return
                 if len(args) != 2 or validate_decimal(args[1]) is not None:
@@ -125,14 +125,10 @@ class BalanceCommand:
             # show zero balances if it is a gateway connector (the user manually
             # chose to show those values with 'gateway connector-tokens')
             if conn_setting.uses_gateway_generic_connector():
-                if bal == Decimal(0):
-                    allocated = "0%"
-                else:
-                    allocated = f"{(bal - avai) / bal:.0%}"
+                allocated = "0%" if bal == Decimal(0) else f"{(bal - avai) / bal:.0%}"
+            elif bal == Decimal(0):
+                continue
             else:
-                # the exchange is CEX. Only show balance if non-zero.
-                if bal == Decimal(0):
-                    continue
                 allocated = f"{(bal - avai) / bal:.0%}"
 
             rate = await RateOracle.get_instance().get_rate(base_token=token)
@@ -151,10 +147,10 @@ class BalanceCommand:
 
     async def asset_limits_df(self,
                               asset_limit_conf: Dict[str, str]):
-        rows = []
-        for token, amount in asset_limit_conf.items():
-            rows.append({"Asset": token, "Limit": round(Decimal(amount), 4)})
-
+        rows = [
+            {"Asset": token, "Limit": round(Decimal(amount), 4)}
+            for token, amount in asset_limit_conf.items()
+        ]
         df = pd.DataFrame(data=rows, columns=["Asset", "Limit"])
         df.sort_values(by=["Asset"], inplace=True)
         return df
@@ -186,9 +182,10 @@ class BalanceCommand:
         return
 
     async def paper_acccount_balance_df(self, paper_balances: Dict[str, Decimal]):
-        rows = []
-        for asset, balance in paper_balances.items():
-            rows.append({"Asset": asset, "Balance": round(Decimal(str(balance)), 4)})
+        rows = [
+            {"Asset": asset, "Balance": round(Decimal(str(balance)), 4)}
+            for asset, balance in paper_balances.items()
+        ]
         df = pd.DataFrame(data=rows, columns=["Asset", "Balance"])
         df.sort_values(by=["Asset"], inplace=True)
         return df

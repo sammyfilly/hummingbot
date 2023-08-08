@@ -17,7 +17,7 @@ def public_rest_url(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> st
     :return: the full URL to the endpoint
     """
     if CONSTANTS.REST_URL[-1] != "/" and endpoint[0] != "/":
-        endpoint = "/" + endpoint
+        endpoint = f"/{endpoint}"
     return CONSTANTS.REST_URL + endpoint
 
 
@@ -29,10 +29,7 @@ def build_api_factory(
         throttler: Optional[AsyncThrottler] = None,
         auth: Optional[AuthBase] = None) -> WebAssistantsFactory:
     throttler = throttler or create_throttler()
-    api_factory = WebAssistantsFactory(
-        throttler=throttler,
-        auth=auth)
-    return api_factory
+    return WebAssistantsFactory(throttler=throttler, auth=auth)
 
 
 def create_throttler() -> AsyncThrottler:

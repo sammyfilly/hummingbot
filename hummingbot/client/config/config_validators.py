@@ -64,14 +64,13 @@ def validate_decimal(value: str, min_value: Decimal = None, max_value: Decimal =
             return f"Value cannot be less than {min_value}."
         elif max_value is not None and not decimal_value <= Decimal(str(max_value)):
             return f"Value cannot be more than {max_value}."
-    else:
-        if min_value is not None and max_value is not None:
-            if not (Decimal(str(min_value)) < decimal_value < Decimal(str(max_value))):
-                return f"Value must be between {min_value} and {max_value} (exclusive)."
-        elif min_value is not None and not decimal_value > Decimal(str(min_value)):
-            return f"Value must be more than {min_value}."
-        elif max_value is not None and not decimal_value < Decimal(str(max_value)):
-            return f"Value must be less than {max_value}."
+    elif min_value is not None and max_value is not None:
+        if not (Decimal(str(min_value)) < decimal_value < Decimal(str(max_value))):
+            return f"Value must be between {min_value} and {max_value} (exclusive)."
+    elif min_value is not None and not decimal_value > Decimal(str(min_value)):
+        return f"Value must be more than {min_value}."
+    elif max_value is not None and not decimal_value < Decimal(str(max_value)):
+        return f"Value must be less than {max_value}."
 
 
 def validate_market_trading_pair(market: str, value: str) -> Optional[str]:
@@ -110,18 +109,17 @@ def validate_int(value: str, min_value: int = None, max_value: int = None, inclu
         if min_value is not None and max_value is not None:
             if not (min_value <= int_value <= max_value):
                 return f"Value must be between {min_value} and {max_value}."
-        elif min_value is not None and not int_value >= min_value:
+        elif min_value is not None and int_value < min_value:
             return f"Value cannot be less than {min_value}."
-        elif max_value is not None and not int_value <= max_value:
+        elif max_value is not None and int_value > max_value:
             return f"Value cannot be more than {max_value}."
-    else:
-        if min_value is not None and max_value is not None:
-            if not (min_value < int_value < max_value):
-                return f"Value must be between {min_value} and {max_value} (exclusive)."
-        elif min_value is not None and not int_value > min_value:
-            return f"Value must be more than {min_value}."
-        elif max_value is not None and not int_value < max_value:
-            return f"Value must be less than {max_value}."
+    elif min_value is not None and max_value is not None:
+        if not (min_value < int_value < max_value):
+            return f"Value must be between {min_value} and {max_value} (exclusive)."
+    elif min_value is not None and int_value <= min_value:
+        return f"Value must be more than {min_value}."
+    elif max_value is not None and int_value >= max_value:
+        return f"Value must be less than {max_value}."
 
 
 def validate_float(value: str, min_value: float = None, max_value: float = None, inclusive=True) -> Optional[str]:
@@ -136,18 +134,17 @@ def validate_float(value: str, min_value: float = None, max_value: float = None,
         if min_value is not None and max_value is not None:
             if not (min_value <= float_value <= max_value):
                 return f"Value must be between {min_value} and {max_value}."
-        elif min_value is not None and not float_value >= min_value:
+        elif min_value is not None and float_value < min_value:
             return f"Value cannot be less than {min_value}."
-        elif max_value is not None and not float_value <= max_value:
+        elif max_value is not None and float_value > max_value:
             return f"Value cannot be more than {max_value}."
-    else:
-        if min_value is not None and max_value is not None:
-            if not (min_value < float_value < max_value):
-                return f"Value must be between {min_value} and {max_value} (exclusive)."
-        elif min_value is not None and not float_value > min_value:
-            return f"Value must be more than {min_value}."
-        elif max_value is not None and not float_value < max_value:
-            return f"Value must be less than {max_value}."
+    elif min_value is not None and max_value is not None:
+        if not (min_value < float_value < max_value):
+            return f"Value must be between {min_value} and {max_value} (exclusive)."
+    elif min_value is not None and float_value <= min_value:
+        return f"Value must be more than {min_value}."
+    elif max_value is not None and float_value >= max_value:
+        return f"Value must be less than {max_value}."
 
 
 def validate_datetime_iso_string(value: str) -> Optional[str]:

@@ -43,21 +43,23 @@ def build_api_factory(
         throttler=throttler,
         domain=domain,
     ))
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
-            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            TimeSynchronizerRESTPreProcessor(
+                synchronizer=time_synchronizer, time_provider=time_provider
+            ),
             BinancePerpetualRESTPreProcessor(),
-        ])
-    return api_factory
+        ],
+    )
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(throttler: AsyncThrottler) -> WebAssistantsFactory:
-    api_factory = WebAssistantsFactory(
+    return WebAssistantsFactory(
         throttler=throttler,
-        rest_pre_processors=[BinancePerpetualRESTPreProcessor()])
-    return api_factory
+        rest_pre_processors=[BinancePerpetualRESTPreProcessor()],
+    )
 
 
 def create_throttler() -> AsyncThrottler:
@@ -76,9 +78,7 @@ async def get_current_server_time(
         method=RESTMethod.GET,
         throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
     )
-    server_time = response["serverTime"]
-
-    return server_time
+    return response["serverTime"]
 
 
 def is_exchange_information_valid(rule: Dict[str, Any]) -> bool:
@@ -89,8 +89,4 @@ def is_exchange_information_valid(rule: Dict[str, Any]) -> bool:
 
     :return: True if the trading pair is enabled, False otherwise
     """
-    if rule["contractType"] == "PERPETUAL" and rule["status"] == "TRADING":
-        valid = True
-    else:
-        valid = False
-    return valid
+    return rule["contractType"] == "PERPETUAL" and rule["status"] == "TRADING"

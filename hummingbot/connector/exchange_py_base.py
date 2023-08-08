@@ -367,7 +367,7 @@ class ExchangePyBase(ExchangeBase, ABC):
         """
         incomplete_orders = [o for o in self.in_flight_orders.values() if not o.is_done]
         tasks = [self._execute_cancel(o.trading_pair, o.client_order_id) for o in incomplete_orders]
-        order_id_set = set([o.client_order_id for o in incomplete_orders])
+        order_id_set = {o.client_order_id for o in incomplete_orders}
         successful_cancellations = []
 
         try:
@@ -562,12 +562,12 @@ class ExchangePyBase(ExchangeBase, ABC):
         :param trading_pair: the trading pair the order to cancel operates with
         :param order_id: the client id of the order to cancel
         """
-        result = None
         tracked_order = self._order_tracker.fetch_tracked_order(order_id)
-        if tracked_order is not None:
-            result = await self._execute_order_cancel(order=tracked_order)
-
-        return result
+        return (
+            await self._execute_order_cancel(order=tracked_order)
+            if tracked_order is not None
+            else None
+        )
 
     # === Order Tracking ===
 
@@ -877,12 +877,11 @@ class ExchangePyBase(ExchangeBase, ABC):
         return await self._api_request(*args, **kwargs)
 
     async def _api_request_url(self, path_url: str, is_auth_required: bool = False) -> str:
-        if is_auth_required:
-            url = self.web_utils.private_rest_url(path_url, domain=self.domain)
-        else:
-            url = self.web_utils.public_rest_url(path_url, domain=self.domain)
-
-        return url
+        return (
+            self.web_utils.private_rest_url(path_url, domain=self.domain)
+            if is_auth_required
+            else self.web_utils.public_rest_url(path_url, domain=self.domain)
+        )
 
     async def _api_request(
             self,
@@ -904,7 +903,7 @@ class ExchangePyBase(ExchangeBase, ABC):
 
         for _ in range(2):
             try:
-                request_result = await rest_assistant.execute_request(
+                return await rest_assistant.execute_request(
                     url=url,
                     params=params,
                     data=data,
@@ -913,11 +912,11 @@ class ExchangePyBase(ExchangeBase, ABC):
                     return_err=return_err,
                     throttler_limit_id=limit_id if limit_id else path_url,
                 )
-
-                return request_result
             except IOError as request_exception:
                 last_exception = request_exception
-                if self._is_request_exception_related_to_time_synchronizer(request_exception=request_exception):
+                if self._is_request_exception_related_to_time_synchronizer(
+                    last_exception=last_exception
+                ):
                     self._time_synchronizer.clear_time_offset_ms_samples()
                     await self._update_time_synchronizer()
                 else:
@@ -1067,19 +1066,18 @@ class ExchangePyBase(ExchangeBase, ABC):
         await self._api_get(path_url=self.check_network_request_path)
 
     async def _make_trading_rules_request(self) -> Any:
-        exchange_info = await self._api_get(path_url=self.trading_rules_request_path)
-        return exchange_info
+        return await self._api_get(path_url=self.trading_rules_request_path)
 
     async def _make_trading_pairs_request(self) -> Any:
-        exchange_info = await self._api_get(path_url=self.trading_pairs_request_path)
-        return exchange_info
+        return await self._api_get(path_url=self.trading_pairs_request_path)
 
     def _get_poll_interval(self, timestamp: float) -> float:
         last_user_stream_message_time = (
             0 if self._user_stream_tracker is None else self._user_stream_tracker.last_recv_time
         )
         last_recv_diff = timestamp - last_user_stream_message_time
-        poll_interval = (
-            self.SHORT_POLL_INTERVAL if last_recv_diff > self.TICK_INTERVAL_LIMIT else self.LONG_POLL_INTERVAL
+        return (
+            self.SHORT_POLL_INTERVAL
+            if last_recv_diff > self.TICK_INTERVAL_LIMIT
+            else self.LONG_POLL_INTERVAL
         )
-        return poll_interval

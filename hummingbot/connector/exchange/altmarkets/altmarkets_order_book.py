@@ -40,7 +40,7 @@ class AltmarketsOrderBook(OrderBook):
         """
 
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
 
         return AltmarketsOrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
@@ -61,7 +61,7 @@ class AltmarketsOrderBook(OrderBook):
         """
 
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
 
         return AltmarketsOrderBookMessage(
             message_type=OrderBookMessageType.DIFF,
@@ -81,7 +81,7 @@ class AltmarketsOrderBook(OrderBook):
         """
 
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
 
         msg.update({
             "trade_id": str(msg.get("tid")),
@@ -98,8 +98,12 @@ class AltmarketsOrderBook(OrderBook):
 
     @classmethod
     def from_snapshot(cls, snapshot: OrderBookMessage):
-        raise NotImplementedError(Constants.EXCHANGE_NAME + " order book needs to retain individual order data.")
+        raise NotImplementedError(
+            f"{Constants.EXCHANGE_NAME} order book needs to retain individual order data."
+        )
 
     @classmethod
-    def restore_from_snapshot_and_diffs(self, snapshot: OrderBookMessage, diffs: List[OrderBookMessage]):
-        raise NotImplementedError(Constants.EXCHANGE_NAME + " order book needs to retain individual order data.")
+    def restore_from_snapshot_and_diffs(cls, snapshot: OrderBookMessage, diffs: List[OrderBookMessage]):
+        raise NotImplementedError(
+            f"{Constants.EXCHANGE_NAME} order book needs to retain individual order data."
+        )

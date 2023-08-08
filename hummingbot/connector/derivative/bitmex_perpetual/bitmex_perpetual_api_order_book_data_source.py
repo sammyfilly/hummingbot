@@ -79,7 +79,7 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                      domain: str = CONSTANTS.DOMAIN) -> Dict[str, float]:
         tasks = [cls.get_last_traded_price(t_pair, domain) for t_pair in trading_pairs]
         results = await safe_gather(*tasks)
-        return {t_pair: result for t_pair, result in zip(trading_pairs, results)}
+        return dict(zip(trading_pairs, results))
 
     @classmethod
     async def get_last_traded_price(cls,
@@ -230,17 +230,12 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 domain=domain,
                 throttler=throttler)}
             if limit != 0:
-                params.update({"limit": str(limit)})
+                params["limit"] = str(limit)
 
             throttler = throttler or ob_source_cls._get_throttler_instance()
-            data = await web_utils.api_request(
-                CONSTANTS.SNAPSHOT_REST_URL,
-                api_factory,
-                throttler,
-                domain,
-                params
+            return await web_utils.api_request(
+                CONSTANTS.SNAPSHOT_REST_URL, api_factory, throttler, domain, params
             )
-            return data
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -263,15 +258,12 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 throttler=self._throttler
             )
         )
-        if size_currency.is_base:
-            for order in snapshot:
+        for order in snapshot:
+            if size_currency.is_base:
                 order_details = [order['price'], order['size']]
-                asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
-        else:
-            for order in snapshot:
+            else:
                 order_details = [order['price'], order['size'] / order['price']]
-                asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
-
+            asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
         snapshot_dict = {
             "bids": bids,
             "asks": asks,
@@ -312,15 +304,17 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             params
         )
         data = data[0]
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(data["lastPrice"]),
             mark_price=Decimal(data["fairPrice"]),
-            next_funding_utc_timestamp=datetime.timestamp(datetime.strptime(data["fundingTimestamp"], "%Y-%m-%dT%H:%M:%S.000Z")),
+            next_funding_utc_timestamp=datetime.timestamp(
+                datetime.strptime(
+                    data["fundingTimestamp"], "%Y-%m-%dT%H:%M:%S.000Z"
+                )
+            ),
             rate=Decimal(data["fundingRate"]),
         )
-
-        return funding_info
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         """
@@ -395,8 +389,7 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         id_tick = await utils.get_trading_pair_index_and_tick_size(exchange_trading_pair)
         trading_pair_id = id_tick.index
         instrument_tick_size = id_tick.tick_size
-        price = ((1e8 * trading_pair_id) - order_id) * instrument_tick_size
-        return price
+        return ((1e8 * trading_pair_id) - order_id) * instrument_tick_size
 
     async def listen_for_order_book_diffs(self, ev_loop: asyncio.BaseEventLoop, output: asyncio.Queue):
         while True:
@@ -463,15 +456,12 @@ class BitmexPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                             throttler=self._throttler
                         )
                     )
-                    if size_currency.is_base:
-                        for order in snapshot:
+                    for order in snapshot:
+                        if size_currency.is_base:
                             order_details = [order['price'], order['size']]
-                            asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
-                    else:
-                        for order in snapshot:
+                        else:
                             order_details = [order['price'], order['size'] / order['price']]
-                            asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
-
+                        asks.append(order_details) if order['side'] == "Sell" else bids.append(order_details)
                     snapshot_dict = {
                         "bids": bids,
                         "asks": asks,

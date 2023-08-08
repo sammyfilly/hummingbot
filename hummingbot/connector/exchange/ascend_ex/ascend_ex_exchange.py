@@ -189,12 +189,8 @@ class AscendExExchange(ExchangePyBase):
 
         is_maker = is_maker or (order_type is OrderType.LIMIT_MAKER)
         trading_pair = combine_to_hb_trading_pair(base=base_currency, quote=quote_currency)
-        if trading_pair in self._trading_fees:
-            fees_data = self._trading_fees[trading_pair]
-            fee_value = Decimal(fees_data["maker"]) if is_maker else Decimal(fees_data["taker"])
-            fee = AddedToCostTradeFee(percent=fee_value)
-        else:
-            fee = build_trade_fee(
+        if trading_pair not in self._trading_fees:
+            return build_trade_fee(
                 self.name,
                 is_maker,
                 base_currency=base_currency,
@@ -204,7 +200,9 @@ class AscendExExchange(ExchangePyBase):
                 amount=amount,
                 price=price,
             )
-        return fee
+        fees_data = self._trading_fees[trading_pair]
+        fee_value = Decimal(fees_data["maker"]) if is_maker else Decimal(fees_data["taker"])
+        return AddedToCostTradeFee(percent=fee_value)
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
         mapping = bidict()
@@ -273,9 +271,7 @@ class AscendExExchange(ExchangePyBase):
             data=data,
             is_auth_required=True,
         )
-        if cancel_result.get("code") == 0:
-            return True
-        return False
+        return cancel_result.get("code") == 0
 
     async def _user_stream_event_listener(self):
         """
@@ -310,11 +306,11 @@ class AscendExExchange(ExchangePyBase):
                     )
 
                     fillable_order = None
-                    if len(fillable_order_list) > 0:
+                    if fillable_order_list:
                         fillable_order = fillable_order_list[0]
 
                     updatable_order = None
-                    if len(updatable_order_list) > 0:
+                    if updatable_order_list:
                         updatable_order = updatable_order_list[0]
 
                     if fillable_order is not None and updated_status in [
@@ -325,12 +321,16 @@ class AscendExExchange(ExchangePyBase):
                         execute_price = Decimal(execution_data["ap"])
                         fee_asset = execution_data["fa"]
                         total_order_fee = Decimal(execution_data["cf"])
-                        current_accumulated_fee = 0
-                        for fill in fillable_order.order_fills.values():
-                            current_accumulated_fee += sum(
-                                (fee.amount for fee in fill.fee.flat_fees if fee.token == fee_asset)
+                        current_accumulated_fee = sum(
+                            sum(
+                                (
+                                    fee.amount
+                                    for fee in fill.fee.flat_fees
+                                    if fee.token == fee_asset
+                                )
                             )
-
+                            for fill in fillable_order.order_fills.values()
+                        )
                         fee = TradeFeeBase.new_spot_fee(
                             fee_schema=self.trade_fee_schema(),
                             trade_type=fillable_order.trade_type,
@@ -369,8 +369,8 @@ class AscendExExchange(ExchangePyBase):
                     self._account_balances.update({quote_asset: Decimal(execution_data["qtb"])})
                     self._account_available_balances.update({quote_asset: Decimal(execution_data["qab"])})
 
-                # The balance event is not processed because it only sends transfers information
-                # We need to use the offline balance estimation for AscendEx
+                        # The balance event is not processed because it only sends transfers information
+                        # We need to use the offline balance estimation for AscendEx
 
             except asyncio.CancelledError:
                 raise
@@ -380,11 +380,11 @@ class AscendExExchange(ExchangePyBase):
 
     async def _update_balances(self):
         local_asset_names = set(self._account_balances.keys())
-        remote_asset_names = set()
-
         response = await self._api_get(path_url=CONSTANTS.BALANCE_PATH_URL, is_auth_required=True)
 
         if response.get("code") == 0:
+            remote_asset_names = set()
+
             for balance_entry in response["data"]:
                 asset_name = balance_entry["asset"]
                 self._account_available_balances[asset_name] = Decimal(balance_entry["availableBalance"])
@@ -461,7 +461,7 @@ class AscendExExchange(ExchangePyBase):
             percent_token=fee_asset,
             flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)],
         )
-        trade_update = TradeUpdate(
+        return TradeUpdate(
             trade_id=trade_id,
             client_order_id=order.client_order_id,
             exchange_order_id=order.exchange_order_id,
@@ -469,11 +469,10 @@ class AscendExExchange(ExchangePyBase):
             fee=fee,
             fill_base_amount=asset_amount_detail[order.base_asset],
             fill_quote_amount=asset_amount_detail[order.quote_asset],
-            fill_price=asset_amount_detail[order.quote_asset] / asset_amount_detail[order.base_asset],
+            fill_price=asset_amount_detail[order.quote_asset]
+            / asset_amount_detail[order.base_asset],
             fill_timestamp=timestamp,
         )
-
-        return trade_update
 
     async def _all_trade_updates_for_orders(
         self, orders: List[InFlightOrder], sequence_number: int
@@ -523,24 +522,25 @@ class AscendExExchange(ExchangePyBase):
         return trade_updates, max_sequence_number
 
     async def _update_orders_fills(self, orders: List[InFlightOrder]):
-        if orders:
-            # Since we are keeping the last order fill sequence number referenced to improve the query performance
-            # it is necessary to evaluate updates for all possible fillable orders every time (to avoid loosing updates)
-            candidate_orders = list(self._order_tracker.all_fillable_orders.values())
-            try:
-                if candidate_orders:
-                    trade_updates, max_sequence_number = await self._all_trade_updates_for_orders(
-                        orders=candidate_orders, sequence_number=self._last_known_sequence_number
-                    )
-                    # Update the _last_known_sequence_number to reduce the amount of information requested next time
-                    self._last_known_sequence_number = max(self._last_known_sequence_number, max_sequence_number)
-                    for trade_update in trade_updates:
-                        self._order_tracker.process_trade_update(trade_update)
-            except asyncio.CancelledError:
-                raise
-            except Exception as request_error:
-                order_ids = [order.client_order_id for order in candidate_orders]
-                self.logger().warning(f"Failed to fetch trade updates for orders {order_ids}. Error: {request_error}")
+        if not orders:
+            return
+        # Since we are keeping the last order fill sequence number referenced to improve the query performance
+        # it is necessary to evaluate updates for all possible fillable orders every time (to avoid loosing updates)
+        candidate_orders = list(self._order_tracker.all_fillable_orders.values())
+        try:
+            if candidate_orders:
+                trade_updates, max_sequence_number = await self._all_trade_updates_for_orders(
+                    orders=candidate_orders, sequence_number=self._last_known_sequence_number
+                )
+                # Update the _last_known_sequence_number to reduce the amount of information requested next time
+                self._last_known_sequence_number = max(self._last_known_sequence_number, max_sequence_number)
+                for trade_update in trade_updates:
+                    self._order_tracker.process_trade_update(trade_update)
+        except asyncio.CancelledError:
+            raise
+        except Exception as request_error:
+            order_ids = [order.client_order_id for order in candidate_orders]
+            self.logger().warning(f"Failed to fetch trade updates for orders {order_ids}. Error: {request_error}")
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         exchange_order_id = await tracked_order.get_exchange_order_id()
@@ -549,22 +549,19 @@ class AscendExExchange(ExchangePyBase):
             path_url=CONSTANTS.ORDER_STATUS_PATH_URL, params=params, is_auth_required=True
         )
 
-        if updated_order_data.get("code") == 0:
-            order_update_data = updated_order_data["data"]
-            ordered_state = order_update_data["status"]
-            new_state = CONSTANTS.ORDER_STATE[ordered_state]
-
-            order_update = OrderUpdate(
-                client_order_id=tracked_order.client_order_id,
-                exchange_order_id=order_update_data["orderId"],
-                trading_pair=tracked_order.trading_pair,
-                update_timestamp=self.current_timestamp,
-                new_state=new_state,
-            )
-
-            return order_update
-        else:
+        if updated_order_data.get("code") != 0:
             raise IOError(f"Error requesting status for order {tracked_order.client_order_id} ({updated_order_data})")
+        order_update_data = updated_order_data["data"]
+        ordered_state = order_update_data["status"]
+        new_state = CONSTANTS.ORDER_STATE[ordered_state]
+
+        return OrderUpdate(
+            client_order_id=tracked_order.client_order_id,
+            exchange_order_id=order_update_data["orderId"],
+            trading_pair=tracked_order.trading_pair,
+            update_timestamp=self.current_timestamp,
+            new_state=new_state,
+        )
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
         params = {"symbol": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)}

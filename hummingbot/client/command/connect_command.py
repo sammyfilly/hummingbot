@@ -41,10 +41,11 @@ class ConnectCommand:
         connector_config = ClientConfigAdapter(AllConnectorSettings.get_connector_config_keys(connector_name))
         if Security.connector_config_file_exists(connector_name):
             await Security.wait_til_decryption_done()
-            api_key_config = [
-                c.printable_value for c in connector_config.traverse(secure=False) if "api_key" in c.attr
-            ]
-            if api_key_config:
+            if api_key_config := [
+                c.printable_value
+                for c in connector_config.traverse(secure=False)
+                if "api_key" in c.attr
+            ]:
                 api_key = api_key_config[0]
                 prompt = (
                     f"Would you like to replace your existing {connector_name} API key {api_key} (Yes/No)? >>> "

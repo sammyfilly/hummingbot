@@ -25,8 +25,7 @@ class BitmexPerpetualAuth(AuthBase):
 
     def generate_signature_from_payload(self, payload: str) -> str:
         secret = bytes(self._api_secret.encode("utf-8"))
-        signature = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
-        return signature
+        return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         verb = str(request.method)
@@ -35,8 +34,8 @@ class BitmexPerpetualAuth(AuthBase):
         parsed_url = urlparse(request.url)
         path = parsed_url.path
         query = urlencode(request.params) if request.params is not None else ''
-        if not (query == ''):
-            query = '?' + query
+        if query != '':
+            query = f'?{query}'
         payload = verb + path + query + expires + data
         signature = self.generate_signature_from_payload(payload)
 
@@ -52,6 +51,5 @@ class BitmexPerpetualAuth(AuthBase):
         return request  # pass-through
 
     async def generate_ws_signature(self, ts: str):
-        payload = 'GET/realtime' + ts
-        signature = self.generate_signature_from_payload(payload)
-        return signature
+        payload = f'GET/realtime{ts}'
+        return self.generate_signature_from_payload(payload)

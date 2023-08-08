@@ -228,22 +228,24 @@ class ConnectorSetting(NamedTuple):
         return "".join([o.capitalize() for o in self.module_name().split("_")])
 
     def get_api_data_source_module_name(self) -> str:
-        module_name = ""
         if self.uses_clob_connector():
-            if self.type == ConnectorType.CLOB_PERP:
-                module_name = f"{self.name.rsplit(sep='_', maxsplit=2)[0]}_api_data_source"
-            else:
-                module_name = f"{self.name.split('_')[0]}_api_data_source"
-        return module_name
+            return (
+                f"{self.name.rsplit(sep='_', maxsplit=2)[0]}_api_data_source"
+                if self.type == ConnectorType.CLOB_PERP
+                else f"{self.name.split('_')[0]}_api_data_source"
+            )
+        else:
+            return ""
 
     def get_api_data_source_class_name(self) -> str:
-        class_name = ""
         if self.uses_clob_connector():
-            if self.type == ConnectorType.CLOB_PERP:
-                class_name = f"{self.name.split('_')[0].capitalize()}PerpetualAPIDataSource"
-            else:
-                class_name = f"{self.name.split('_')[0].capitalize()}APIDataSource"
-        return class_name
+            return (
+                f"{self.name.split('_')[0].capitalize()}PerpetualAPIDataSource"
+                if self.type == ConnectorType.CLOB_PERP
+                else f"{self.name.split('_')[0].capitalize()}APIDataSource"
+            )
+        else:
+            return ""
 
     def conn_init_parameters(
         self,
@@ -287,17 +289,12 @@ class ConnectorSetting(NamedTuple):
         return params
 
     def add_domain_parameter(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        if not self.is_sub_domain:
-            return params
-        else:
+        if self.is_sub_domain:
             params["domain"] = self.domain_parameter
-            return params
+        return params
 
     def base_name(self) -> str:
-        if self.is_sub_domain:
-            return self.parent_name
-        else:
-            return self.name
+        return self.parent_name if self.is_sub_domain else self.name
 
     def non_trading_connector_instance_with_default_configuration(
             self,
@@ -326,9 +323,7 @@ class ConnectorSetting(NamedTuple):
             client_config_map=HummingbotApplication.main_application().client_config_map,
         )
         kwargs = self.add_domain_parameter(kwargs)
-        connector = connector_class(**kwargs)
-
-        return connector
+        return connector_class(**kwargs)
 
     def _load_clob_api_data_source(
         self,
@@ -343,12 +338,11 @@ class ConnectorSetting(NamedTuple):
         module_path = f"{parent_package}.{module_package}.{module_name}"
         module: ModuleType = importlib.import_module(module_path)
         api_data_source_class = getattr(module, self.get_api_data_source_class_name())
-        instance = api_data_source_class(
+        return api_data_source_class(
             trading_pairs=trading_pairs,
             connector_spec=connector_spec,
             client_config_map=client_config_map,
         )
-        return instance
 
     def _get_module_package(self) -> str:
         return self.type.name.lower()
@@ -450,8 +444,7 @@ class AllConnectorSettings:
     @classmethod
     def initialize_paper_trade_settings(cls, paper_trade_exchanges: List[str]):
         for e in paper_trade_exchanges:
-            base_connector_settings: Optional[ConnectorSetting] = cls.all_connector_settings.get(e, None)
-            if base_connector_settings:
+            if base_connector_settings := cls.all_connector_settings.get(e, None):
                 paper_trade_settings = ConnectorSetting(
                     name=f"{e}_paper_trade",
                     type=base_connector_settings.type,

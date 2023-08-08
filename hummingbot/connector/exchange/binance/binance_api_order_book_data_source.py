@@ -54,14 +54,14 @@ class BinanceAPIOrderBookDataSource(OrderBookTrackerDataSource):
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
-        data = await rest_assistant.execute_request(
-            url=web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self._domain),
+        return await rest_assistant.execute_request(
+            url=web_utils.public_rest_url(
+                path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self._domain
+            ),
             params=params,
             method=RESTMethod.GET,
             throttler_limit_id=CONSTANTS.SNAPSHOT_PATH_URL,
         )
-
-        return data
 
     async def _subscribe_channels(self, ws: WSAssistant):
         """

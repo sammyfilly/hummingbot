@@ -45,14 +45,15 @@ class KucoinPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             symbol_info = funding_info_response["data"]
         else:
             symbol_info = funding_info_response["data"][0]
-        funding_info = FundingInfo(
+        return FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(symbol_info["indexPrice"])),
             mark_price=Decimal(str(symbol_info["markPrice"])),
-            next_funding_utc_timestamp=int(pd.Timestamp(symbol_info["nextFundingRateTime"]).timestamp()),
+            next_funding_utc_timestamp=int(
+                pd.Timestamp(symbol_info["nextFundingRateTime"]).timestamp()
+            ),
             rate=Decimal(str(symbol_info["predictedFundingFeeRate"])),
         )
-        return funding_info
 
     async def _subscribe_channels(self, ws: WSAssistant):
         try:
@@ -175,7 +176,11 @@ class KucoinPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
     async def _parse_funding_info_message(self, raw_message: Dict[str, Any], message_queue: asyncio.Queue):
         event_type = raw_message["subject"]
-        if event_type == "funding.rate" or event_type == "mark.index.price" or event_type == "position.settlement":
+        if event_type in [
+            "funding.rate",
+            "mark.index.price",
+            "position.settlement",
+        ]:
             symbol = raw_message["topic"].split(":")[-1]
             trading_pair = await self._connector.trading_pair_associated_to_exchange_symbol(symbol)
             entries = raw_message["data"]
@@ -193,17 +198,16 @@ class KucoinPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         rest_assistant = await self._api_factory.get_rest_assistant()
         endpoint = CONSTANTS.GET_CONTRACT_INFO_PATH_URL.format(symbol=exchange_symbol[0])
         url = web_utils.get_rest_url_for_endpoint(endpoint=endpoint, domain=self._domain)
-        data = await rest_assistant.execute_request(
+        return await rest_assistant.execute_request(
             url=url,
             throttler_limit_id=CONSTANTS.GET_CONTRACT_INFO_PATH_URL,
             method=RESTMethod.GET,
             is_auth_required=True,
         )
-        return data
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
         exchange_symbol = await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
-        if len(exchange_symbol) > 0:
+        if exchange_symbol:
             exchange_symbol = exchange_symbol[0]
         snapshot_response = await self._request_order_book_snapshot(exchange_symbol)
         snapshot_data = snapshot_response["data"]
@@ -237,13 +241,11 @@ class KucoinPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         endpoint = CONSTANTS.ORDER_BOOK_ENDPOINT
         url = web_utils.get_rest_url_for_endpoint(endpoint=endpoint.format(symbol=trading_pair))
         limit_id = web_utils.get_rest_api_limit_id_for_endpoint(endpoint)
-        data = await rest_assistant.execute_request(
+        return await rest_assistant.execute_request(
             url=url,
             throttler_limit_id=limit_id,
             method=RESTMethod.GET,
         )
-
-        return data
 
     def _get_bids_and_asks_from_rest_msg_data(
             self, trading_pair, snapshot: List[Dict[str, Union[str, int, float]]]

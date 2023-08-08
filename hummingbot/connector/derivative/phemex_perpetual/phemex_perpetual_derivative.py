@@ -191,7 +191,7 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
         is_maker: Optional[bool] = None,
     ) -> TradeFeeBase:
         is_maker = is_maker or False
-        fee = build_trade_fee(
+        return build_trade_fee(
             self.name,
             is_maker,
             base_currency=base_currency,
@@ -201,7 +201,6 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
             amount=amount,
             price=price,
         )
-        return fee
 
     async def _update_trading_fees(self):
         """
@@ -267,11 +266,10 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         if self._position_mode is PositionMode.ONEWAY:
             pos_side = "Merged"
+        elif tracked_order.position is PositionAction.OPEN:
+            pos_side = "Long" if tracked_order.trade_type is TradeType.BUY else "Short"
         else:
-            if tracked_order.position is PositionAction.OPEN:
-                pos_side = "Long" if tracked_order.trade_type is TradeType.BUY else "Short"
-            else:
-                pos_side = "Short" if tracked_order.trade_type is TradeType.BUY else "Long"
+            pos_side = "Short" if tracked_order.trade_type is TradeType.BUY else "Long"
         api_params = {"clOrdID": order_id, "symbol": symbol, "posSide": pos_side}
         cancel_result = await self._api_delete(
             path_url=CONSTANTS.CANCEL_ORDERS, params=api_params, is_auth_required=True
@@ -281,9 +279,10 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
             code = cancel_result["code"]
             message = cancel_result["msg"]
             raise IOError(f"{code} - {message}")
-        is_order_canceled = CONSTANTS.ORDER_STATE[cancel_result["data"]["ordStatus"]] == OrderState.CANCELED
-
-        return is_order_canceled
+        return (
+            CONSTANTS.ORDER_STATE[cancel_result["data"]["ordStatus"]]
+            == OrderState.CANCELED
+        )
 
     async def _place_order(
         self,
@@ -321,12 +320,10 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
 
         order_result = await self._api_post(path_url=CONSTANTS.PLACE_ORDERS, data=api_params, is_auth_required=True)
         code = order_result.get("code")
-        if code == 0 and order_result.get("data", {}).get("orderID", None) is not None:
-            o_id = str(order_result["data"]["orderID"])
-            transact_time = order_result["data"]["actionTimeNs"] * 1e-9
-            return o_id, transact_time
-        else:
+        if code != 0 or order_result.get("data", {}).get("orderID", None) is None:
             raise IOError(f"{code} - {order_result.get('msg')}")
+        o_id = str(order_result["data"]["orderID"])
+        return o_id, order_result["data"]["actionTimeNs"] * 1e-9
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
         # Not required in Phemex because it reimplements _update_orders_fills
@@ -352,55 +349,54 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
         # Reimplementing this method because Phemex does not provide an endpoint to request trades for a particular
         # order
 
-        if len(orders) > 0:
-            orders_by_id = dict()
-            min_order_creation_time = defaultdict(lambda: self.current_timestamp)
-            trading_pairs = set()
-            for order in orders:
-                orders_by_id[order.client_order_id] = order
-                trading_pair = order.trading_pair
-                trading_pairs.add(trading_pair)
-                min_order_creation_time[trading_pair] = min(min_order_creation_time[trading_pair], order.creation_timestamp)
-            tasks = [
-                safe_ensure_future(
-                    self._all_trades_details(trading_pair=trading_pair, start_time=min_order_creation_time[trading_pair])
+        if len(orders) <= 0:
+            return
+        orders_by_id = {}
+        min_order_creation_time = defaultdict(lambda: self.current_timestamp)
+        trading_pairs = set()
+        for order in orders:
+            orders_by_id[order.client_order_id] = order
+            trading_pair = order.trading_pair
+            trading_pairs.add(trading_pair)
+            min_order_creation_time[trading_pair] = min(min_order_creation_time[trading_pair], order.creation_timestamp)
+        tasks = [
+            safe_ensure_future(
+                self._all_trades_details(trading_pair=trading_pair, start_time=min_order_creation_time[trading_pair])
+            )
+            for trading_pair in trading_pairs
+        ]
+
+        trades_data = []
+        results = await safe_gather(*tasks)
+        for result in results:
+            trades_data.extend(iter(result.get("data", {}).get("rows", [])))
+        for trade_info in trades_data:
+            client_order_id = trade_info["clOrdID"]
+            tracked_order = orders_by_id.get(client_order_id)
+
+            if tracked_order is not None:
+                position_action = tracked_order.position
+                fee = TradeFeeBase.new_perpetual_fee(
+                    fee_schema=self.trade_fee_schema(),
+                    position_action=position_action,
+                    percent_token=CONSTANTS.COLLATERAL_TOKEN,
+                    flat_fees=[
+                        TokenAmount(amount=Decimal(trade_info["execFeeRv"]), token=CONSTANTS.COLLATERAL_TOKEN)
+                    ],
                 )
-                for trading_pair in trading_pairs
-            ]
+                trade_update: TradeUpdate = TradeUpdate(
+                    trade_id=trade_info["execID"],
+                    client_order_id=tracked_order.client_order_id,
+                    exchange_order_id=trade_info["orderID"],
+                    trading_pair=tracked_order.trading_pair,
+                    fill_timestamp=trade_info["transactTimeNs"] * 1e-9,
+                    fill_price=Decimal(trade_info["execPriceRp"]),
+                    fill_base_amount=Decimal(trade_info["execQtyRq"]),
+                    fill_quote_amount=Decimal(trade_info["execValueRv"]),
+                    fee=fee,
+                )
 
-            trades_data = []
-            results = await safe_gather(*tasks)
-            for result in results:
-                for trades_for_market in result.get("data", {}).get("rows", []):
-                    trades_data.append(trades_for_market)
-
-            for trade_info in trades_data:
-                client_order_id = trade_info["clOrdID"]
-                tracked_order = orders_by_id.get(client_order_id)
-
-                if tracked_order is not None:
-                    position_action = tracked_order.position
-                    fee = TradeFeeBase.new_perpetual_fee(
-                        fee_schema=self.trade_fee_schema(),
-                        position_action=position_action,
-                        percent_token=CONSTANTS.COLLATERAL_TOKEN,
-                        flat_fees=[
-                            TokenAmount(amount=Decimal(trade_info["execFeeRv"]), token=CONSTANTS.COLLATERAL_TOKEN)
-                        ],
-                    )
-                    trade_update: TradeUpdate = TradeUpdate(
-                        trade_id=trade_info["execID"],
-                        client_order_id=tracked_order.client_order_id,
-                        exchange_order_id=trade_info["orderID"],
-                        trading_pair=tracked_order.trading_pair,
-                        fill_timestamp=trade_info["transactTimeNs"] * 1e-9,
-                        fill_price=Decimal(trade_info["execPriceRp"]),
-                        fill_base_amount=Decimal(trade_info["execQtyRq"]),
-                        fill_quote_amount=Decimal(trade_info["execValueRv"]),
-                        fee=fee,
-                    )
-
-                    self._order_tracker.process_trade_update(trade_update=trade_update)
+                self._order_tracker.process_trade_update(trade_update=trade_update)
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
@@ -684,10 +680,8 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
             params=params,
             is_auth_required=True,
         )
-        success = False
         msg = response["msg"]
-        if msg == "" and response["code"] == 0:
-            success = True
+        success = msg == "" and response["code"] == 0
         return success, msg
 
     async def _fetch_last_fee_payment(self, trading_pair: str) -> Tuple[int, Decimal, Decimal]:
@@ -718,8 +712,5 @@ class PhemexPerpetualDerivative(PerpetualDerivativePyBase):
             params=params,
         )
 
-        price = 0
         kline = resp_json.get("data", {}).get("rows", [])
-        if len(kline) > 0:
-            price = float(kline[0][2])
-        return price
+        return float(kline[0][2]) if len(kline) > 0 else 0

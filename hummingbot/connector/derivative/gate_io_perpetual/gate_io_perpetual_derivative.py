@@ -133,14 +133,12 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
     def _format_amount_to_size(self, trading_pair, amount: Decimal) -> Decimal:
         trading_rule = self._trading_rules[trading_pair]
         quanto_multiplier = Decimal(trading_rule.min_base_amount_increment)
-        size = amount / quanto_multiplier
-        return size
+        return amount / quanto_multiplier
 
     def _format_size_to_amount(self, trading_pair, size: Decimal) -> Decimal:
         trading_rule = self._trading_rules[trading_pair]
         quanto_multiplier = Decimal(trading_rule.min_base_amount_increment)
-        amount = size * quanto_multiplier
-        return amount
+        return size * quanto_multiplier
 
     def supported_order_types(self) -> List[OrderType]:
         """
@@ -306,17 +304,17 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
             "size": float(-size) if trade_type.name.lower() == 'sell' else float(size),
         }
         if order_type.is_limit_type():
-            data.update({
+            data |= {
                 "price": f"{price:f}",
                 "tif": "gtc",
-            })
+            }
             if order_type is OrderType.LIMIT_MAKER:
-                data.update({"tif": "poc"})
+                data["tif"] = "poc"
         else:
-            data.update({
+            data |= {
                 "price": "0",
                 "tif": "ioc",
-            })
+            }
 
         # RESTRequest does not support json, and if we pass a dict
         # the underlying aiohttp will encode it to params
@@ -345,8 +343,7 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.ORDER_DELETE_LIMIT_ID,
         )
-        canceled = resp.get("finish_as") == "cancelled"
-        return canceled
+        return resp.get("finish_as") == "cancelled"
 
     async def _update_balances(self):
         """
@@ -381,20 +378,18 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _process_balance_message(self, account):
         local_asset_names = set(self._account_balances.keys())
-        remote_asset_names = set()
-
         asset_name = account["currency"]
         self._account_available_balances[asset_name] = Decimal(str(account["available"]))
         self._account_balances[asset_name] = Decimal(str(account["total"]))
-        remote_asset_names.add(asset_name)
+        remote_asset_names = {asset_name}
         asset_names_to_remove = local_asset_names.difference(remote_asset_names)
         for asset_name in asset_names_to_remove:
             del self._account_available_balances[asset_name]
             del self._account_balances[asset_name]
 
     def _process_balance_message_ws(self, balance_update):
+        asset_name = "USDT"
         for account in balance_update:
-            asset_name = "USDT"
             self._account_available_balances[asset_name] = Decimal(str(account["balance"])) - Decimal(
                 str(account["change"]))
             self._account_balances[asset_name] = Decimal(str(account["balance"]))
@@ -442,20 +437,26 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
             )]
         )
 
-        trade_update = TradeUpdate(
+        return TradeUpdate(
             trade_id=str(order_fill["id"]),
             client_order_id=order.client_order_id,
             exchange_order_id=order.exchange_order_id,
             trading_pair=order.trading_pair,
             fee=fee,
-            fill_base_amount=abs(self._format_size_to_amount(order.trading_pair, (Decimal(str(order_fill["size"]))))),
+            fill_base_amount=abs(
+                self._format_size_to_amount(
+                    order.trading_pair, (Decimal(str(order_fill["size"])))
+                )
+            ),
             fill_quote_amount=abs(
-                self._format_size_to_amount(order.trading_pair, (Decimal(str(order_fill["size"])))) * Decimal(
-                    order_fill["price"])),
+                self._format_size_to_amount(
+                    order.trading_pair, (Decimal(str(order_fill["size"])))
+                )
+                * Decimal(order_fill["price"])
+            ),
             fill_price=Decimal(order_fill["price"]),
             fill_timestamp=order_fill["create_time"],
         )
-        return trade_update
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         try:
@@ -478,14 +479,13 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
         client_order_id = str(order_status.get("text", ""))
         state = self._normalise_order_message_state(order_status, order) or order.current_state
 
-        order_update = OrderUpdate(
+        return OrderUpdate(
             trading_pair=order.trading_pair,
             update_timestamp=int(order_status["create_time"]),
             new_state=state,
             client_order_id=client_order_id,
             exchange_order_id=str(order_status["id"]),
         )
-        return order_update
 
     def _normalise_order_message_state(self, order_msg: Dict[str, Any], tracked_order):
         state = None
@@ -500,13 +500,9 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
         finish_as = order_msg.get("finish_as")
         size = Decimal(str(order_msg.get("size")))
         if status == "finished":
-            if finish_as == 'filled':
-                state = OrderState.FILLED
-            else:
-                state = OrderState.CANCELED
-        else:
-            if amount_left > 0 and amount_left != size:
-                state = OrderState.PARTIALLY_FILLED
+            state = OrderState.FILLED if finish_as == 'filled' else OrderState.CANCELED
+        elif amount_left > 0 and amount_left != size:
+            state = OrderState.PARTIALLY_FILLED
         return state
 
     # use bybitperpetual sample,not gateio sample
@@ -520,7 +516,7 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
                  price: Decimal = s_decimal_NaN,
                  is_maker: Optional[bool] = None) -> TradeFeeBase:
         is_maker = is_maker or False
-        fee = build_trade_fee(
+        return build_trade_fee(
             self.name,
             is_maker,
             base_currency=base_currency,
@@ -530,7 +526,6 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
             amount=amount,
             price=price,
         )
-        return fee
 
     async def _update_trading_fees(self):
         """
@@ -613,16 +608,16 @@ class GateIoPerpetualDerivative(PerpetualDerivativePyBase):
         pos_key = self._perpetual_trading.position_key(trading_pair, position_side)
         entry_price = Decimal(str(position_msg["entry_price"]))
         position = self._perpetual_trading.get_position(trading_pair, position_side)
-        if position is not None:
-            if amount == Decimal("0"):
-                self._perpetual_trading.remove_position(pos_key)
-            else:
-                position.update_position(position_side=position_side,
-                                         unrealized_pnl=None,
-                                         entry_price=entry_price,
-                                         amount=amount * amount_precision)
-        else:
+        if position is None:
             await self._update_positions()
+
+        elif amount == Decimal("0"):
+            self._perpetual_trading.remove_position(pos_key)
+        else:
+            position.update_position(position_side=position_side,
+                                     unrealized_pnl=None,
+                                     entry_price=entry_price,
+                                     amount=amount * amount_precision)
 
     def _process_order_message(self, order_msg: Dict[str, Any]):
         """

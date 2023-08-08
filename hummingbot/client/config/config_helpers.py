@@ -135,11 +135,11 @@ class ClientConfigAdapter:
         return f"{self.__class__.__name__}.{self._hb_config.__repr__()}"
 
     def __eq__(self, other):
-        if isinstance(other, ClientConfigAdapter):
-            eq = self._hb_config.__eq__(other._hb_config)
-        else:
-            eq = super().__eq__(other)
-        return eq
+        return (
+            self._hb_config.__eq__(other._hb_config)
+            if isinstance(other, ClientConfigAdapter)
+            else super().__eq__(other)
+        )
 
     @property
     def hb_config(self) -> BaseClientModel:
@@ -206,8 +206,7 @@ class ClientConfigAdapter:
 
     def is_secure(self, attr_name: str) -> bool:
         client_data = self.get_client_data(attr_name)
-        secure = client_data is not None and client_data.is_secure
-        return secure
+        return client_data is not None and client_data.is_secure
 
     def get_client_data(self, attr_name: str) -> Optional[ClientFieldData]:
         return self._hb_config.__fields__[attr_name].field_info.extra.get("client_data")
@@ -225,12 +224,11 @@ class ClientConfigAdapter:
         """Used to generate default strings for config prompts."""
         default = self.get_default(attr_name=attr_name)
         if default is None:
-            default_str = ""
+            return ""
         elif isinstance(default, (List, Tuple)):
-            default_str = ",".join(default)
+            return ",".join(default)
         else:
-            default_str = str(default)
-        return default_str
+            return str(default)
 
     def get_type(self, attr_name: str) -> Type:
         return self._hb_config.__fields__[attr_name].type_
@@ -238,8 +236,7 @@ class ClientConfigAdapter:
     def generate_yml_output_str_with_comments(self) -> str:
         fragments_with_comments = [self._generate_title()]
         self._add_model_fragments(fragments_with_comments)
-        yml_str = "".join(fragments_with_comments)
-        return yml_str
+        return "".join(fragments_with_comments)
 
     def validate_model(self) -> List[str]:
         results = validate_model(type(self._hb_config), json.loads(self._hb_config.json()))
@@ -269,20 +266,19 @@ class ClientConfigAdapter:
 
     def _get_printable_value(self, attr: str, value: Any, secure: bool) -> str:
         if isinstance(value, ClientConfigAdapter):
-            if self._is_union(self.get_type(attr)):  # it is a union of modes
-                printable_value = value.hb_config.Config.title
-            else:  # it is a collection of settings stored in a submodule
-                printable_value = ""
+            return (
+                value.hb_config.Config.title
+                if self._is_union(self.get_type(attr))
+                else ""
+            )
         elif isinstance(value, SecretStr) and not secure:
-            printable_value = value.get_secret_value()
+            return value.get_secret_value()
         else:
-            printable_value = str(value)
-        return printable_value
+            return str(value)
 
     @staticmethod
     def _is_union(t: Type) -> bool:
-        is_union = hasattr(t, "__origin__") and t.__origin__ == Union
-        return is_union
+        return hasattr(t, "__origin__") and t.__origin__ == Union
 
     def _dict_in_conf_order(self) -> Dict[str, Any]:
         d = {}
@@ -310,8 +306,7 @@ class ClientConfigAdapter:
 
     def _generate_title(self) -> str:
         title = f"{self._hb_config.Config.title}"
-        title = self._adorn_title(title)
-        return title
+        return self._adorn_title(title)
 
     @staticmethod
     def _adorn_title(title: str) -> str:
@@ -336,9 +331,7 @@ class ClientConfigAdapter:
             if attr_comment is not None:
                 comment_prefix = f"{' ' * 2 * traversal_item.depth}# "
                 attr_comment = "\n".join(f"{comment_prefix}{c}" for c in attr_comment.split("\n"))
-                fragments_with_comments.append(attr_comment)
-                fragments_with_comments.append("\n")
-
+                fragments_with_comments.extend((attr_comment, "\n"))
             attribute = traversal_item.attr
             value = getattr(self, attribute)
             if isinstance(value, ClientConfigAdapter):
@@ -377,14 +370,13 @@ def parse_cvar_value(cvar: ConfigVar, value: Any) -> Any:
     elif cvar.type == 'str':
         return str(value)
     elif cvar.type == 'list':
-        if isinstance(value, str):
-            if len(value) == 0:
-                return []
-            filtered: filter = filter(lambda x: x not in ['[', ']', '"', "'"], list(value))
-            value = "".join(filtered).split(",")  # create csv and generate list
-            return [s.strip() for s in value]  # remove leading and trailing whitespaces
-        else:
+        if not isinstance(value, str):
             return value
+        if len(value) == 0:
+            return []
+        filtered: filter = filter(lambda x: x not in ['[', ']', '"', "'"], list(value))
+        value = "".join(filtered).split(",")  # create csv and generate list
+        return [s.strip() for s in value]  # remove leading and trailing whitespaces
     elif cvar.type == 'json':
         if isinstance(value, str):
             value_json = value.replace("'", '"')  # replace single quotes with double quotes for valid JSON
@@ -427,10 +419,7 @@ def cvar_json_migration(cvar: ConfigVar, cvar_value: Any) -> Any:
     and min_quote_order_amount (deprecated), they were List but change to Dict.
     """
     if cvar.key in ("paper_trade_account_balance", "min_quote_order_amount") and isinstance(cvar_value, List):
-        results = {}
-        for item in cvar_value:
-            results[item[0]] = item[1]
-        return results
+        return {item[0]: item[1] for item in cvar_value}
     return cvar_value
 
 
@@ -532,14 +521,12 @@ def get_strategy_starter_file(strategy: str) -> Callable:
 
 def strategy_name_from_file(file_path: Path) -> str:
     data = read_yml_file(file_path)
-    strategy = data.get("strategy")
-    return strategy
+    return data.get("strategy")
 
 
 def connector_name_from_file(file_path: Path) -> str:
     data = read_yml_file(file_path)
-    connector = data["connector"]
-    return connector
+    return data["connector"]
 
 
 def validate_strategy_file(file_path: Path) -> Optional[str]:
@@ -600,10 +587,7 @@ def load_connector_config_map_from_file(yml_path: Path) -> ClientConfigAdapter:
 
 def load_client_config_map_from_file() -> ClientConfigAdapter:
     yml_path = CLIENT_CONFIG_PATH
-    if yml_path.exists():
-        config_data = read_yml_file(yml_path)
-    else:
-        config_data = {}
+    config_data = read_yml_file(yml_path) if yml_path.exists() else {}
     client_config = ClientConfigMap()
     config_map = ClientConfigAdapter(client_config)
     config_validation_errors = _load_yml_data_into_map(config_data, config_map)
@@ -618,10 +602,7 @@ def load_client_config_map_from_file() -> ClientConfigAdapter:
 
 def load_ssl_config_map_from_file() -> ClientConfigAdapter:
     yml_path = GATEWAY_SSL_CONF_FILE
-    if yml_path.exists():
-        config_data = read_yml_file(yml_path)
-    else:
-        config_data = {}
+    config_data = read_yml_file(yml_path) if yml_path.exists() else {}
     ssl_config = SSLConfigMap()
     config_map = ClientConfigAdapter(ssl_config)
     config_validation_errors = _load_yml_data_into_map(config_data, config_map)
@@ -637,8 +618,7 @@ def load_ssl_config_map_from_file() -> ClientConfigAdapter:
 
 
 def get_connector_hb_config(connector_name: str) -> BaseClientModel:
-    hb_config = AllConnectorSettings.get_connector_config_keys(connector_name)
-    return hb_config
+    return AllConnectorSettings.get_connector_config_keys(connector_name)
 
 
 def reset_connector_hb_config(connector_name: str):
@@ -659,16 +639,17 @@ def api_keys_from_connector_config_map(cm: ClientConfigAdapter) -> Dict[str, str
 
 
 def get_connector_config_yml_path(connector_name: str) -> Path:
-    connector_path = Path(CONNECTORS_CONF_DIR_PATH) / f"{connector_name}.yml"
-    return connector_path
+    return Path(CONNECTORS_CONF_DIR_PATH) / f"{connector_name}.yml"
 
 
 def list_connector_configs() -> List[Path]:
-    connector_configs = [
-        Path(f.path) for f in scandir(str(CONNECTORS_CONF_DIR_PATH))
-        if f.is_file() and not f.name.startswith("_") and not f.name.startswith(".")
+    return [
+        Path(f.path)
+        for f in scandir(str(CONNECTORS_CONF_DIR_PATH))
+        if f.is_file()
+        and not f.name.startswith("_")
+        and not f.name.startswith(".")
     ]
-    return connector_configs
 
 
 def _load_yml_data_into_map(yml_data: Dict[str, Any], cm: ClientConfigAdapter) -> List[str]:
@@ -676,8 +657,7 @@ def _load_yml_data_into_map(yml_data: Dict[str, Any], cm: ClientConfigAdapter) -
         if key in yml_data:
             cm.setattr_no_validation(key, yml_data[key])
 
-    config_validation_errors = cm.validate_model()  # try coercing values to appropriate type
-    return config_validation_errors
+    return cm.validate_model()
 
 
 async def load_yml_into_dict(yml_path: str) -> Dict[str, Any]:
@@ -738,7 +718,7 @@ async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Di
                 if err_msg is not None:
                     # Instead of raising an exception, simply skip over this variable and wait till the user is prompted
                     logging.getLogger().error(
-                        "Invalid value %s for config variable %s: %s" % (val_in_file, cvar.key, err_msg)
+                        f"Invalid value {val_in_file} for config variable {cvar.key}: {err_msg}"
                     )
                     cvar.value = None
 
@@ -751,8 +731,10 @@ async def load_yml_into_cm_legacy(yml_path: str, template_file_path: str, cm: Di
             # save the old variables into the new config file
             save_to_yml_legacy(yml_path, cm)
     except Exception as e:
-        logging.getLogger().error("Error loading configs. Your config file may be corrupt. %s" % (e,),
-                                  exc_info=True)
+        logging.getLogger().error(
+            f"Error loading configs. Your config file may be corrupt. {e}",
+            exc_info=True,
+        )
 
 
 async def read_system_configs_from_yml():
@@ -789,14 +771,11 @@ def save_to_yml_legacy(yml_path: str, cm: Dict[str, ConfigVar]):
             data = yaml_parser.load(stream) or {}
             for key in cm:
                 cvar = cm.get(key)
-                if type(cvar.value) == Decimal:
-                    data[key] = float(cvar.value)
-                else:
-                    data[key] = cvar.value
+                data[key] = float(cvar.value) if type(cvar.value) == Decimal else cvar.value
             with open(yml_path, "w+", encoding="utf-8") as outfile:
                 yaml_parser.dump(data, outfile)
     except Exception as e:
-        logging.getLogger().error("Error writing configs: %s" % (str(e),), exc_info=True)
+        logging.getLogger().error(f"Error writing configs: {str(e)}", exc_info=True)
 
 
 def save_to_yml(yml_path: Path, cm: ClientConfigAdapter):
@@ -805,7 +784,7 @@ def save_to_yml(yml_path: Path, cm: ClientConfigAdapter):
         with open(yml_path, "w", encoding="utf-8") as outfile:
             outfile.write(cm_yml_str)
     except Exception as e:
-        logging.getLogger().error("Error writing configs: %s" % (str(e),), exc_info=True)
+        logging.getLogger().error(f"Error writing configs: {str(e)}", exc_info=True)
 
 
 def write_config_to_yml(
@@ -840,11 +819,9 @@ async def create_yml_files_legacy():
                     template_version = template_data.get("template_version", 0)
                 with open(conf_path, "r", encoding="utf-8") as conf_fd:
                     conf_version = 0
-                    try:
+                    with contextlib.suppress(Exception):
                         conf_data = yaml_parser.load(conf_fd)
                         conf_version = conf_data.get("template_version", 0)
-                    except Exception:
-                        pass
                 if conf_version < template_version:
                     shutil.copy(template_path, conf_path)
 
@@ -894,9 +871,7 @@ def missing_required_configs_legacy(config_map):
 
 
 def format_config_file_name(file_name):
-    if "." not in file_name:
-        return file_name + ".yml"
-    return file_name
+    return f"{file_name}.yml" if "." not in file_name else file_name
 
 
 def parse_config_default_to_text(config: ConfigVar) -> str:

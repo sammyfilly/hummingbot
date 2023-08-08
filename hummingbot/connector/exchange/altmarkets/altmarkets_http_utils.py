@@ -70,7 +70,7 @@ async def api_call_with_retries(method,
     url = f"{Constants.REST_URL}/{endpoint}"
     headers = {"Content-Type": "application/json", "User-Agent": Constants.USER_AGENT}
     if extra_headers:
-        headers.update(extra_headers)
+        headers |= extra_headers
     if auth_headers:
         headers.update(auth_headers())
     http_client = shared_client or aiohttp.ClientSession()
@@ -95,26 +95,25 @@ async def api_call_with_retries(method,
         raise AltmarketsAPIError(parsed_response)
 
     if request_errors or parsed_response is None:
-        if try_count < Constants.API_MAX_RETRIES and not disable_retries:
-            try_count += 1
-            time_sleep = retry_sleep_time(try_count)
-
-            suppress_msgs = ['Forbidden']
-
-            err_msg = (f"Error fetching data from {url}. HTTP status is {http_status}. "
-                       f"Retrying in {time_sleep:.0f}s. {parsed_response or ''}")
-
-            if (parsed_response is not None and parsed_response not in suppress_msgs) or try_count > 1:
-                if logger:
-                    logger.network(err_msg)
-                else:
-                    print(err_msg)
-            elif logger:
-                logger.debug(err_msg, exc_info=True)
-            await asyncio.sleep(time_sleep)
-            return await api_call_with_retries(method=method, endpoint=endpoint, extra_headers=extra_headers,
-                                               params=params, shared_client=shared_client, throttler=throttler,
-                                               limit_id=limit_id, try_count=try_count, logger=logger)
-        else:
+        if try_count >= Constants.API_MAX_RETRIES or disable_retries:
             raise AltmarketsAPIError({"errors": parsed_response, "status": http_status})
+        try_count += 1
+        time_sleep = retry_sleep_time(try_count)
+
+        suppress_msgs = ['Forbidden']
+
+        err_msg = (f"Error fetching data from {url}. HTTP status is {http_status}. "
+                   f"Retrying in {time_sleep:.0f}s. {parsed_response or ''}")
+
+        if (parsed_response is not None and parsed_response not in suppress_msgs) or try_count > 1:
+            if logger:
+                logger.network(err_msg)
+            else:
+                print(err_msg)
+        elif logger:
+            logger.debug(err_msg, exc_info=True)
+        await asyncio.sleep(time_sleep)
+        return await api_call_with_retries(method=method, endpoint=endpoint, extra_headers=extra_headers,
+                                           params=params, shared_client=shared_client, throttler=throttler,
+                                           limit_id=limit_id, try_count=try_count, logger=logger)
     return parsed_response

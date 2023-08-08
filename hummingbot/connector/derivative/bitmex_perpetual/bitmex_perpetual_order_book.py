@@ -21,7 +21,7 @@ class BitmexPerpetualOrderBook(OrderBook):
     def snapshot_message_from_exchange(cls, msg: Dict[str, any], timestamp: Optional[float] = None,
                                        metadata: Optional[Dict] = None) -> OrderBookMessage:
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
             "update_id": timestamp,
@@ -46,7 +46,7 @@ class BitmexPerpetualOrderBook(OrderBook):
     def trade_message_from_exchange(cls, msg: Dict[str, any], metadata: Optional[Dict] = None):
         data = msg
         if metadata:
-            data.update(metadata)
+            data |= metadata
         timestamp = datetime.timestamp(datetime.strptime(data["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ"))
         return OrderBookMessage(OrderBookMessageType.TRADE, {
             "trading_pair": data["symbol"],

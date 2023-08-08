@@ -39,7 +39,7 @@ class KucoinPerpetualAuth(AuthBase):
 
         headers = {}
         if request.headers is not None:
-            headers.update(request.headers)
+            headers |= request.headers
         headers.update(self.authentication_headers(request=request, use_time_provider=use_time_provider))
         request.headers = headers
 
@@ -53,7 +53,7 @@ class KucoinPerpetualAuth(AuthBase):
     async def _authenticate_post(self, request: RESTRequest) -> RESTRequest:
         data = json.loads(request.data) if request.data is not None else {}
         data = self._extend_params_with_authentication_info(data)
-        data = {key: value for key, value in sorted(data.items())}
+        data = dict(sorted(data.items()))
         request.data = json.dumps(data)
         return request
 
@@ -70,13 +70,11 @@ class KucoinPerpetualAuth(AuthBase):
         :return: a dictionary of authentication info including the request signature
         """
         expires = self._get_expiration_timestamp()
-        raw_signature = "GET/realtime" + expires
+        raw_signature = f"GET/realtime{expires}"
         signature = hmac.new(
             self._secret_key.encode("utf-8"), raw_signature.encode("utf-8"), hashlib.sha256
         ).hexdigest()
-        auth_info = [self._api_key, expires, signature]
-
-        return auth_info
+        return [self._api_key, expires, signature]
 
     def _extend_params_with_authentication_info(self, params: Dict[str, Any]) -> Dict[str, Any]:
         params["timestamp"] = self._get_timestamp()
@@ -85,7 +83,7 @@ class KucoinPerpetualAuth(AuthBase):
         for key, value in sorted(params.items()):
             converted_value = float(value) if type(value) is Decimal else value
             converted_value = converted_value if type(value) is str else json.dumps(converted_value)
-            key_value_elements.append(str(key) + "=" + converted_value)
+            key_value_elements.append(f"{str(key)}={converted_value}")
         raw_signature = "&".join(key_value_elements)
         signature = hmac.new(self._secret_key.encode("utf-8"), raw_signature.encode("utf-8"), hashlib.sha256).hexdigest()
         params["sign"] = signature
@@ -98,11 +96,10 @@ class KucoinPerpetualAuth(AuthBase):
                 CONSTANTS.HB_PARTNER_KEY.encode("utf-8"),
                 partner_payload.encode("utf-8"),
                 hashlib.sha256).digest())
-        third_party = {
+        return {
             "KC-API-PARTNER": CONSTANTS.HB_PARTNER_ID,
-            "KC-API-PARTNER-SIGN": str(partner_signature, "utf-8")
+            "KC-API-PARTNER-SIGN": str(partner_signature, "utf-8"),
         }
-        return third_party
 
     def authentication_headers(self, request: RESTRequest, use_time_provider) -> Dict[str, Any]:
         if use_time_provider == 1 and self._time_provider.time() > 0:
@@ -122,10 +119,7 @@ class KucoinPerpetualAuth(AuthBase):
             query_string_components = urlencode(sorted_params, safe=',')
             path_url = f"{path_url}?{query_string_components}"
 
-        if request.data is not None:
-            body = request.data
-        else:
-            body = ""
+        body = request.data if request.data is not None else ""
         payload = str(timestamp) + request.method.value.upper() + path_url + body
 
         signature = base64.b64encode(
@@ -141,7 +135,7 @@ class KucoinPerpetualAuth(AuthBase):
         header["KC-API-SIGN"] = str(signature, "utf-8")
         header["KC-API-PASSPHRASE"] = str(passphrase, "utf-8")
         partner_headers = self.partner_header(str(timestamp))
-        header.update(partner_headers)
+        header |= partner_headers
         return header
 
     @staticmethod

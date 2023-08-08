@@ -50,8 +50,7 @@ def json_to_zrx_order(data: Optional[Dict[str, any]]) -> Optional[ZeroExOrder]:
 
 def build_api_factory(throttler: AsyncThrottlerBase) -> WebAssistantsFactory:
     throttler = throttler or AsyncThrottler(rate_limits=[])
-    api_factory = WebAssistantsFactory(throttler=throttler)
-    return api_factory
+    return WebAssistantsFactory(throttler=throttler)
 
 
 def split_hb_trading_pair(trading_pair: str) -> Tuple[str, str]:
@@ -60,15 +59,11 @@ def split_hb_trading_pair(trading_pair: str) -> Tuple[str, str]:
 
 
 def combine_to_hb_trading_pair(base: str, quote: str) -> str:
-    trading_pair = f"{base}-{quote}"
-    return trading_pair
+    return f"{base}-{quote}"
 
 
 def validate_trading_pair(trading_pair: str) -> bool:
-    valid = False
-    if "-" in trading_pair and len(trading_pair.split("-")) == 2:
-        valid = True
-    return valid
+    return "-" in trading_pair and len(trading_pair.split("-")) == 2
 
 
 def _bot_instance_id() -> str:

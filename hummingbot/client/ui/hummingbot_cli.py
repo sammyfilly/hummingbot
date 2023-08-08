@@ -128,7 +128,7 @@ class HummingbotCLI(PubSub):
             if self.hide_input:
                 output = ''
             else:
-                output = '\n>>>  {}'.format(self.input_field.text,)
+                output = f'\n>>>  {self.input_field.text}'
                 self.input_field.buffer.append_to_history()
         except BaseException as e:
             output = str(e)
@@ -224,8 +224,7 @@ class HummingbotCLI(PubSub):
         current_tabs = [t for t in self.command_tabs.values() if t.tab_index > 0]
         if not current_tabs:
             return
-        selected_tab = [t for t in current_tabs if t.is_selected]
-        if selected_tab:
+        if selected_tab := [t for t in current_tabs if t.is_selected]:
             right_tab = [t for t in current_tabs if t.tab_index == selected_tab[0].tab_index + 1]
         else:
             right_tab = [t for t in current_tabs if t.tab_index == 1]

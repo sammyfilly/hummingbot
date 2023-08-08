@@ -462,12 +462,11 @@ class AltmarketsExchange(ExchangeBase):
                                                    )
             exchange_order_id = str(order_result["id"])
             tracked_order = self._in_flight_orders.get(order_id)
-            if tracked_order is not None:
-                self.logger().info(f"Created {order_type.name} {trade_type.name} order {order_id} for "
-                                   f"{amount} {trading_pair}.")
-                tracked_order.update_exchange_order_id(exchange_order_id)
-            else:
+            if tracked_order is None:
                 raise Exception('Order not tracked.')
+            self.logger().info(f"Created {order_type.name} {trade_type.name} order {order_id} for "
+                               f"{amount} {trading_pair}.")
+            tracked_order.update_exchange_order_id(exchange_order_id)
             if trade_type is TradeType.BUY:
                 event_tag = MarketEvent.BuyOrderCreated
                 event_cls = BuyOrderCreatedEvent
@@ -792,12 +791,10 @@ class AltmarketsExchange(ExchangeBase):
 
         # Estimate fee
         trade_msg["trade_fee"] = self.estimate_fee_pct(tracked_order.order_type is OrderType.LIMIT_MAKER)
-        updated = tracked_order.update_with_trade_update(trade_msg)
-
-        if not updated:
+        if updated := tracked_order.update_with_trade_update(trade_msg):
+            await self._trigger_order_fill(tracked_order, trade_msg)
+        else:
             return
-
-        await self._trigger_order_fill(tracked_order, trade_msg)
 
     def _process_balance_message(self, balance_message: Dict[str, Any]):
         asset_name = balance_message["currency"].upper()
@@ -857,7 +854,7 @@ class AltmarketsExchange(ExchangeBase):
         if self._trading_pairs is None:
             raise Exception("cancel_all can only be used when trading_pairs are specified.")
         open_orders = [o for o in self._in_flight_orders.values() if not o.is_done]
-        if len(open_orders) == 0:
+        if not open_orders:
             return []
         tasks = [self._execute_cancel(o.trading_pair, o.client_order_id) for o in open_orders]
         cancellation_results = []
@@ -973,15 +970,17 @@ class AltmarketsExchange(ExchangeBase):
             ret_val.append(
                 OpenOrder(
                     client_order_id=client_order_id,
-                    trading_pair=convert_from_exchange_trading_pair(order["market"]),
+                    trading_pair=convert_from_exchange_trading_pair(
+                        order["market"]
+                    ),
                     price=Decimal(str(order["price"])),
                     amount=Decimal(str(order["origin_volume"])),
                     executed_amount=Decimal(str(order["executed_volume"])),
                     status=order["state"],
                     order_type=OrderType.LIMIT,
-                    is_buy=True if order["side"].lower() == TradeType.BUY.name.lower() else False,
+                    is_buy=order["side"].lower() == TradeType.BUY.name.lower(),
                     time=str_date_to_ts(order["created_at"]),
-                    exchange_order_id=exchange_order_id
+                    exchange_order_id=exchange_order_id,
                 )
             )
         return ret_val

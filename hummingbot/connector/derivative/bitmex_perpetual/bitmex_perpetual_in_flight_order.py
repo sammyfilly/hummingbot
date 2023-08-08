@@ -78,7 +78,7 @@ class BitmexPerpetualInFlightOrder(InFlightOrderBase):
             getattr(TradeType, data["trade_type"]),
             Decimal(data["price"]),
             Decimal(data["amount"]),
-            float(data["created_at"] if "created_at" in data else 0),
+            float(data.get("created_at", 0)),
             data["leverage"],
             data["position"],
             data["last_state"],
@@ -102,12 +102,10 @@ class BitmexPerpetualInFlightOrder(InFlightOrderBase):
         else:
             if "amount_remaining" in data:
                 overall_remaining_size: Decimal = data["amount_remaining"]
-                overall_executed_base: Decimal = self.amount - overall_remaining_size
             else:
                 overall_remaining_quote: Decimal = Decimal(str(data["quote_amount_remaining"]))
                 overall_remaining_size: Decimal = overall_remaining_quote / Decimal(str(data["price"]))
-                overall_executed_base: Decimal = self.amount - overall_remaining_size
-
+            overall_executed_base: Decimal = self.amount - overall_remaining_size
             if data.get("avgPx") is not None:
                 overall_executed_quote: Decimal = overall_executed_base * Decimal(str(data["avgPx"]))
             else:

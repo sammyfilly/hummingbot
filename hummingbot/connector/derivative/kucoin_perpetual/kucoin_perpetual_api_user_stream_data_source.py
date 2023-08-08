@@ -48,10 +48,11 @@ class KucoinPerpetualAPIUserStreamDataSource(UserStreamTrackerDataSource):
 
         :return: the timestamp of the last received message in seconds
         """
-        t = 0.0
-        if len(self._ws_assistants) > 0:
-            t = min([wsa.last_recv_time for wsa in self._ws_assistants])
-        return t
+        return (
+            min(wsa.last_recv_time for wsa in self._ws_assistants)
+            if len(self._ws_assistants) > 0
+            else 0.0
+        )
 
     async def listen_for_user_stream(self, output: asyncio.Queue):
         """
@@ -63,13 +64,11 @@ class KucoinPerpetualAPIUserStreamDataSource(UserStreamTrackerDataSource):
         """
         tasks_future = None
         try:
-            tasks = []
-            tasks.append(
+            tasks = [
                 self._listen_for_user_stream_on_url(
                     url=web_utils.wss_private_url(self._domain), output=output
                 )
-            )
-
+            ]
             tasks_future = asyncio.gather(*tasks)
             await tasks_future
 

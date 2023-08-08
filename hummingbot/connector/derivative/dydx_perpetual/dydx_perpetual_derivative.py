@@ -95,7 +95,7 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
         for trading_pair in self._trading_pairs:
             rate_limits += [
                 RateLimit(
-                    limit_id=CONSTANTS.LIMIT_ID_ORDER_CANCEL + "_" + trading_pair,
+                    limit_id=f"{CONSTANTS.LIMIT_ID_ORDER_CANCEL}_{trading_pair}",
                     limit=425,
                     time_interval=CONSTANTS.ONE_SECOND * 10,
                 )
@@ -106,9 +106,13 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
             for trading_pair in self._trading_pairs:
                 rate_limits += [
                     RateLimit(
-                        limit_id=CONSTANTS.LIMIT_ID_ORDER_PLACE + "_" + trading_pair,
-                        limit=self._rate_limits_config["placeOrderRateLimiting"]["maxPoints"],
-                        time_interval=self._rate_limits_config["placeOrderRateLimiting"]["windowSec"],
+                        limit_id=f"{CONSTANTS.LIMIT_ID_ORDER_PLACE}_{trading_pair}",
+                        limit=self._rate_limits_config["placeOrderRateLimiting"][
+                            "maxPoints"
+                        ],
+                        time_interval=self._rate_limits_config[
+                            "placeOrderRateLimiting"
+                        ]["windowSec"],
                     )
                 ]
 
@@ -122,11 +126,18 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
             for trading_pair in self._trading_pairs:
                 rate_limits += [
                     RateLimit(
-                        limit_id=CONSTANTS.LIMIT_ID_ORDER_PLACE + "_" + trading_pair + "_" + str(amount_id),
-                        limit=self._rate_limits_config["placeOrderRateLimiting"]["maxPoints"],
-                        time_interval=self._rate_limits_config["placeOrderRateLimiting"]["windowSec"],
+                        limit_id=f"{CONSTANTS.LIMIT_ID_ORDER_PLACE}_{trading_pair}_{str(amount_id)}",
+                        limit=self._rate_limits_config["placeOrderRateLimiting"][
+                            "maxPoints"
+                        ],
+                        time_interval=self._rate_limits_config[
+                            "placeOrderRateLimiting"
+                        ]["windowSec"],
                         linked_limits=[
-                            LinkedLimitWeightPair(CONSTANTS.LIMIT_ID_ORDER_PLACE + "_" + trading_pair, weight)
+                            LinkedLimitWeightPair(
+                                f"{CONSTANTS.LIMIT_ID_ORDER_PLACE}_{trading_pair}",
+                                weight,
+                            )
                         ],
                     )
                 ]
@@ -211,7 +222,7 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
                 path_url=CONSTANTS.PATH_ACTIVE_ORDERS,
                 params=body_params,
                 is_auth_required=True,
-                limit_id=CONSTANTS.LIMIT_ID_ORDER_CANCEL + "_" + tracked_order.trading_pair,
+                limit_id=f"{CONSTANTS.LIMIT_ID_ORDER_CANCEL}_{tracked_order.trading_pair}",
             )
             if "cancelOrders" not in resp.keys():
                 raise IOError(f"Error canceling order {order_id}.")
@@ -251,8 +262,6 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
         side = "BUY" if trade_type == TradeType.BUY else "SELL"
         expiration = int(time.time()) + CONSTANTS.ORDER_EXPIRATION
         limit_fee = str(CONSTANTS.LIMIT_FEE)
-        reduce_only = False
-
         post_only = order_type is OrderType.LIMIT_MAKER
         time_in_force = CONSTANTS.TIF_GOOD_TIL_TIME
         market = await self.exchange_symbol_associated_to_pair(trading_pair)
@@ -268,11 +277,12 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
             expiration_epoch_seconds=expiration,
         )
 
+        reduce_only = False
         data = {
             "clientId": order_id,
             "market": market,
             "side": side,
-            "price": str(price),
+            "price": price,
             "size": str(amount),
             "type": CONSTANTS.ORDER_TYPE_MAP[order_type],
             "limitFee": limit_fee,
@@ -288,11 +298,7 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
                 path_url=CONSTANTS.PATH_ORDERS,
                 data=data,
                 is_auth_required=True,
-                limit_id=CONSTANTS.LIMIT_ID_ORDER_PLACE
-                + "_"
-                + trading_pair
-                + "_"
-                + str(self._order_notional_amounts[notional_amount]),
+                limit_id=f"{CONSTANTS.LIMIT_ID_ORDER_PLACE}_{trading_pair}_{str(self._order_notional_amounts[notional_amount])}",
             )
         except Exception:
             self._current_place_order_requests -= 1
@@ -319,7 +325,7 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
     ) -> TradeFeeBase:
         is_maker = is_maker or False
         if CONSTANTS.FEES_KEY not in self._trading_fees.keys():
-            fee = build_perpetual_trade_fee(
+            return build_perpetual_trade_fee(
                 self.name,
                 is_maker,
                 position_action=position_action,
@@ -330,14 +336,13 @@ class DydxPerpetualDerivative(PerpetualDerivativePyBase):
                 amount=amount,
                 price=price,
             )
-        else:
-            fee_data = self._trading_fees[CONSTANTS.FEES_KEY]
-            if is_maker:
-                fee_value = Decimal(fee_data[CONSTANTS.FEE_MAKER_KEY])
-            else:
-                fee_value = Decimal(fee_data[CONSTANTS.FEE_TAKER_KEY])
-            fee = AddedToCostTradeFee(percent=fee_value)
-        return fee
+        fee_data = self._trading_fees[CONSTANTS.FEES_KEY]
+        fee_value = (
+            Decimal(fee_data[CONSTANTS.FEE_MAKER_KEY])
+            if is_maker
+            else Decimal(fee_data[CONSTANTS.FEE_TAKER_KEY])
+        )
+        return AddedToCostTradeFee(percent=fee_value)
 
     async def start_network(self):
         await super().start_network()

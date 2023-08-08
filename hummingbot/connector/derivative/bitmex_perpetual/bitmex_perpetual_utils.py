@@ -80,9 +80,7 @@ TRADING_PAIR_SIZE = namedtuple('TradingPairSize', 'currency is_base multiplier')
 
 
 async def get_trading_pair_size_currency(exchange_trading_pair):
-    if exchange_trading_pair in TRADING_PAIR_SIZE_CURRENCY:
-        return TRADING_PAIR_SIZE_CURRENCY[exchange_trading_pair]
-    else:
+    if exchange_trading_pair not in TRADING_PAIR_SIZE_CURRENCY:
         instrument = await web_utils.api_request(
             path = CONSTANTS.EXCHANGE_INFO_URL,
             domain = "bitmex_perpetual",
@@ -95,35 +93,34 @@ async def get_trading_pair_size_currency(exchange_trading_pair):
             TRADING_PAIR_SIZE_CURRENCY[exchange_trading_pair] = TRADING_PAIR_SIZE(quote, False, multiplier)
         else:
             TRADING_PAIR_SIZE_CURRENCY[exchange_trading_pair] = TRADING_PAIR_SIZE(base, True, multiplier)
-        return TRADING_PAIR_SIZE_CURRENCY[exchange_trading_pair]
+    return TRADING_PAIR_SIZE_CURRENCY[exchange_trading_pair]
 
 
 async def get_trading_pair_index_and_tick_size(exchange_trading_pair):
     if exchange_trading_pair in TRADING_PAIR_INDICES:
         return TRADING_PAIR_INDICES[exchange_trading_pair]
-    else:
-        index = 0
-        multiplier = 0
-        while True:
-            offset = 500 * multiplier
-            instruments = await web_utils.api_request(
-                path = CONSTANTS.EXCHANGE_INFO_URL,
-                domain = "bitmex_perpetual",
-                params = {
-                    "count": 500,
-                    "start": offset
-                }
-            )
-            for instrument in instruments:
-                if instrument['symbol'] == exchange_trading_pair:
-                    TRADING_PAIR_INDICES[exchange_trading_pair] = TRADING_PAIR_INDEX(
-                        index,
-                        instrument['tickSize']
-                    )
-                    return TRADING_PAIR_INDICES[exchange_trading_pair]
-                else:
-                    index += 1
-            if len(instruments) < 500:
-                return False
+    index = 0
+    multiplier = 0
+    while True:
+        offset = 500 * multiplier
+        instruments = await web_utils.api_request(
+            path = CONSTANTS.EXCHANGE_INFO_URL,
+            domain = "bitmex_perpetual",
+            params = {
+                "count": 500,
+                "start": offset
+            }
+        )
+        for instrument in instruments:
+            if instrument['symbol'] == exchange_trading_pair:
+                TRADING_PAIR_INDICES[exchange_trading_pair] = TRADING_PAIR_INDEX(
+                    index,
+                    instrument['tickSize']
+                )
+                return TRADING_PAIR_INDICES[exchange_trading_pair]
             else:
-                multiplier += 1
+                index += 1
+        if len(instruments) < 500:
+            return False
+        else:
+            multiplier += 1

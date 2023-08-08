@@ -19,16 +19,17 @@ class BitgetPerpetualAuth(AuthBase):
         self._time_provider: TimeSynchronizer = time_provider
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
-        headers = {}
-        headers["Content-Type"] = "application/json"
-        headers["ACCESS-KEY"] = self._api_key
-        headers["ACCESS-TIMESTAMP"] = str(int(self._time_provider.time() * 1e3))
+        headers = {
+            "Content-Type": "application/json",
+            "ACCESS-KEY": self._api_key,
+            "ACCESS-TIMESTAMP": str(int(self._time_provider.time() * 1e3)),
+        }
         headers["ACCESS-PASSPHRASE"] = self._passphrase
         # headers["locale"] = "en-US"
 
         path = request.throttler_limit_id
         if request.method is RESTMethod.GET:
-            path += "?" + urlencode(request.params)
+            path += f"?{urlencode(request.params)}"
 
         payload = str(request.data)
         headers["ACCESS-SIGN"] = self._sign(
@@ -51,15 +52,14 @@ class BitgetPerpetualAuth(AuthBase):
         """
         timestamp = str(int(self._time_provider.time()))
         signature = self._sign(self._pre_hash(timestamp, "GET", "/user/verify", ""), self._secret_key)
-        auth_info = [
+        return [
             {
                 "apiKey": self._api_key,
                 "passphrase": self._passphrase,
                 "timestamp": timestamp,
-                "sign": signature
+                "sign": signature,
             }
         ]
-        return auth_info
 
     @staticmethod
     def _sign(message, secret_key):
@@ -69,6 +69,6 @@ class BitgetPerpetualAuth(AuthBase):
 
     @staticmethod
     def _pre_hash(timestamp: str, method: str, request_path: str, body: str):
-        if body in ["None", "null"]:
+        if body in {"None", "null"}:
             body = ""
-        return str(timestamp) + method.upper() + request_path + body
+        return timestamp + method.upper() + request_path + body

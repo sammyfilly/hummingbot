@@ -14,9 +14,10 @@ class AscendExRESTPreProcessor(RESTPreProcessorBase):
         if request.headers is None:
             request.headers = {}
         # Generates generic headers required by AscendEx
-        headers_generic = {}
-        headers_generic["Accept"] = "application/json"
-        headers_generic["Content-Type"] = "application/json"
+        headers_generic = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
         # Headers signature to identify user as an HB liquidity provider.
         request.headers = dict(
             list(request.headers.items()) + list(headers_generic.items()) + list(get_hb_id_headers().items())
@@ -61,8 +62,11 @@ def build_api_factory(
     auth: Optional[AuthBase] = None,
 ) -> WebAssistantsFactory:
     throttler = throttler or create_throttler()
-    api_factory = WebAssistantsFactory(throttler=throttler, auth=auth, rest_pre_processors=[AscendExRESTPreProcessor()])
-    return api_factory
+    return WebAssistantsFactory(
+        throttler=throttler,
+        auth=auth,
+        rest_pre_processors=[AscendExRESTPreProcessor()],
+    )
 
 
 def create_throttler() -> AsyncThrottler:

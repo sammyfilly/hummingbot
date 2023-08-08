@@ -178,7 +178,7 @@ class GatewayCommand(GatewayChainApiManager):
         with begin_placeholder_mode(self):
             gateway_connections_conf: List[Dict[str, str]] = GatewayConnectionSetting.load()
             if connector is None:
-                if len(gateway_connections_conf) < 1:
+                if not gateway_connections_conf:
                     self.notify("No existing connection.\n")
                 else:
                     connector_df: pd.DataFrame = build_connector_display(gateway_connections_conf)
@@ -189,7 +189,7 @@ class GatewayCommand(GatewayChainApiManager):
                 connector_config: List[Dict[str, Any]] = [
                     d for d in connector_configs["connectors"] if d["name"] == connector
                 ]
-                if len(connector_config) < 1:
+                if not connector_config:
                     self.notify(f"No available blockchain networks available for the connector '{connector}'.")
                     return
                 available_networks: List[Dict[str, Any]] = connector_config[0]["available_networks"]
@@ -246,18 +246,13 @@ class GatewayCommand(GatewayChainApiManager):
                 wallets_response: List[Dict[str, Any]] = await self._get_gateway_instance().get_wallets()
                 matching_wallets: List[Dict[str, Any]] = [w for w in wallets_response if w["chain"] == chain]
                 wallets: List[str]
-                if len(matching_wallets) < 1:
-                    wallets = []
-                else:
-                    wallets = matching_wallets[0]['walletAddresses']
-
+                wallets = matching_wallets[0]['walletAddresses'] if matching_wallets else []
                 # if the user has no wallet, ask them to select one
-                if len(wallets) < 1 or chain == "near" or len(additional_prompts) != 0:
+                if len(wallets) < 1 or chain == "near" or additional_prompts:
                     wallet_address, additional_prompt_values = await self._prompt_for_wallet_address(
                         chain=chain, network=network, additional_prompts=additional_prompts
                     )
 
-                # the user has a wallet. Ask if they want to use it or create a new one.
                 else:
                     # print table
                     while True:
@@ -267,7 +262,16 @@ class GatewayCommand(GatewayChainApiManager):
                         )
                         if self.app.to_stop_config:
                             return
-                        if use_existing_wallet in ["Y", "y", "Yes", "yes", "N", "n", "No", "no"]:
+                        if use_existing_wallet in {
+                            "Y",
+                            "y",
+                            "Yes",
+                            "yes",
+                            "N",
+                            "n",
+                            "No",
+                            "no",
+                        }:
                             break
                         self.notify("Invalid input. Please try again or exit config [CTRL + x].\n")
 
@@ -393,12 +397,11 @@ class GatewayCommand(GatewayChainApiManager):
         Display connector tokens that hummingbot will report balances for
         """
         if connector_chain_network is None:
-            gateway_connections_conf: List[Dict[str, str]] = GatewayConnectionSetting.load()
-            if len(gateway_connections_conf) < 1:
-                self.notify("No existing connection.\n")
-            else:
+            if gateway_connections_conf := GatewayConnectionSetting.load():
                 connector_df: pd.DataFrame = build_connector_tokens_display(gateway_connections_conf)
                 self.notify(connector_df.to_string(index=False))
+            else:
+                self.notify("No existing connection.\n")
         else:
             conf: Optional[Dict[str, str]] = GatewayConnectionSetting.get_connector_spec_from_market_name(connector_chain_network)
             if conf is not None:
@@ -460,7 +463,7 @@ class GatewayCommand(GatewayChainApiManager):
             self.logger().info(f"Connector {conf['connector']} Tokens {tokens} will now be approved for spending for '{connector_chain_network}'.")
             # get wallets for the selected chain
             gateway_connections_conf: List[Dict[str, str]] = GatewayConnectionSetting.load()
-            if len(gateway_connections_conf) < 1:
+            if not gateway_connections_conf:
                 self.notify("No existing wallet.\n")
                 return
             connector_wallet: List[Dict[str, Any]] = [w for w in gateway_connections_conf if w["chain"] == conf['chain'] and w["connector"] == conf['connector'] and w["network"] == conf['network']]
@@ -493,5 +496,4 @@ class GatewayCommand(GatewayChainApiManager):
     def _get_gateway_instance(
         self  # type: HummingbotApplication
     ) -> GatewayHttpClient:
-        gateway_instance = GatewayHttpClient.get_instance(self.client_config_map)
-        return gateway_instance
+        return GatewayHttpClient.get_instance(self.client_config_map)

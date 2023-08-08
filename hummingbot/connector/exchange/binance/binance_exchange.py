@@ -68,10 +68,7 @@ class BinanceExchange(ExchangePyBase):
 
     @property
     def name(self) -> str:
-        if self._domain == "com":
-            return "binance"
-        else:
-            return f"binance_{self._domain}"
+        return "binance" if self._domain == "com" else f"binance_{self._domain}"
 
     @property
     def rate_limits_rules(self):
@@ -117,14 +114,14 @@ class BinanceExchange(ExchangePyBase):
         return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
 
     async def get_all_pairs_prices(self) -> List[Dict[str, str]]:
-        pairs_prices = await self._api_get(path_url=CONSTANTS.TICKER_BOOK_PATH_URL)
-        return pairs_prices
+        return await self._api_get(path_url=CONSTANTS.TICKER_BOOK_PATH_URL)
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
         error_description = str(request_exception)
-        is_time_synchronizer_related = ("-1021" in error_description
-                                        and "Timestamp for this request" in error_description)
-        return is_time_synchronizer_related
+        return (
+            "-1021" in error_description
+            and "Timestamp for this request" in error_description
+        )
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         return str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in str(
@@ -222,9 +219,7 @@ class BinanceExchange(ExchangePyBase):
             path_url=CONSTANTS.ORDER_PATH_URL,
             params=api_params,
             is_auth_required=True)
-        if cancel_result.get("status") == "CANCELED":
-            return True
-        return False
+        return cancel_result.get("status") == "CANCELED"
 
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
         """
@@ -372,10 +367,10 @@ class BinanceExchange(ExchangePyBase):
                 or (self.in_flight_orders and small_interval_current_tick > small_interval_last_tick)):
             query_time = int(self._last_trades_poll_binance_timestamp * 1e3)
             self._last_trades_poll_binance_timestamp = self._time_synchronizer.time()
-            order_by_exchange_id_map = {}
-            for order in self._order_tracker.all_fillable_orders.values():
-                order_by_exchange_id_map[order.exchange_order_id] = order
-
+            order_by_exchange_id_map = {
+                order.exchange_order_id: order
+                for order in self._order_tracker.all_fillable_orders.values()
+            }
             tasks = []
             trading_pairs = self.trading_pairs
             for trading_pair in trading_pairs:
@@ -500,15 +495,13 @@ class BinanceExchange(ExchangePyBase):
 
         new_state = CONSTANTS.ORDER_STATE[updated_order_data["status"]]
 
-        order_update = OrderUpdate(
+        return OrderUpdate(
             client_order_id=tracked_order.client_order_id,
             exchange_order_id=str(updated_order_data["orderId"]),
             trading_pair=tracked_order.trading_pair,
             update_timestamp=updated_order_data["updateTime"] * 1e-3,
             new_state=new_state,
         )
-
-        return order_update
 
     async def _update_balances(self):
         local_asset_names = set(self._account_balances.keys())

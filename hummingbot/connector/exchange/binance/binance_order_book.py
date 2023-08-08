@@ -23,7 +23,7 @@ class BinanceOrderBook(OrderBook):
         :return: a snapshot message with the snapshot information received from the exchange
         """
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
         return OrderBookMessage(OrderBookMessageType.SNAPSHOT, {
             "trading_pair": msg["trading_pair"],
             "update_id": msg["lastUpdateId"],
@@ -44,7 +44,7 @@ class BinanceOrderBook(OrderBook):
         :return: a diff message with the changes in the order book notified by the exchange
         """
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
         return OrderBookMessage(OrderBookMessageType.DIFF, {
             "trading_pair": msg["trading_pair"],
             "first_update_id": msg["U"],
@@ -62,7 +62,7 @@ class BinanceOrderBook(OrderBook):
         :return: a trade message with the details of the trade as provided by the exchange
         """
         if metadata:
-            msg.update(metadata)
+            msg |= metadata
         ts = msg["E"]
         return OrderBookMessage(OrderBookMessageType.TRADE, {
             "trading_pair": msg["trading_pair"],

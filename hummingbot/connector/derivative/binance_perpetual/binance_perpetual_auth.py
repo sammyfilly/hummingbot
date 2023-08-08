@@ -21,8 +21,7 @@ class BinancePerpetualAuth(AuthBase):
 
     def generate_signature_from_payload(self, payload: str) -> str:
         secret = bytes(self._api_secret.encode("utf-8"))
-        signature = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
-        return signature
+        return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         if request.method == RESTMethod.POST:

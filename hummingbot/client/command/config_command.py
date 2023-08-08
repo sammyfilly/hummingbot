@@ -152,12 +152,15 @@ class ConfigCommand:
             self,  # type: HummingbotApplication
             config_map: Union[ClientConfigAdapter, Dict[str, ConfigVar]]
     ) -> List[Tuple[str, Any]]:
-        if isinstance(config_map, ClientConfigAdapter):
-            data = self.build_model_df_data(config_map)
-        else:  # legacy
-            data = [[cv.printable_key or cv.key, cv.value] for cv in self.strategy_config_map.values() if
-                    not cv.is_secure]
-        return data
+        return (
+            self.build_model_df_data(config_map)
+            if isinstance(config_map, ClientConfigAdapter)
+            else [
+                [cv.printable_key or cv.key, cv.value]
+                for cv in self.strategy_config_map.values()
+                if not cv.is_secure
+            ]
+        )
 
     @staticmethod
     def build_model_df_data(
@@ -202,11 +205,10 @@ class ConfigCommand:
     async def check_password(self,  # type: HummingbotApplication
                              ):
         password = await self.app.prompt(prompt="Enter your password >>> ", is_password=True)
-        if password != Security.secrets_manager.password.get_secret_value():
-            self.notify("Invalid password, please try again.")
-            return False
-        else:
+        if password == Security.secrets_manager.password.get_secret_value():
             return True
+        self.notify("Invalid password, please try again.")
+        return False
 
     # Make this function static so unit testing can be performed.
     @staticmethod
@@ -314,12 +316,13 @@ class ConfigCommand:
         self.app.app.style = load_style(self.client_config_map)
         for config in missings:
             self.notify(f"{config.key}: {str(config.value)}")
-        if (
-                isinstance(self.strategy, PureMarketMakingStrategy) or
-                isinstance(self.strategy, PerpetualMarketMakingStrategy)
+        if isinstance(
+            self.strategy,
+            (PureMarketMakingStrategy, PerpetualMarketMakingStrategy),
         ):
-            updated = ConfigCommand.update_running_mm(self.strategy, key, config_var.value)
-            if updated:
+            if updated := ConfigCommand.update_running_mm(
+                self.strategy, key, config_var.value
+            ):
                 self.notify(f"\nThe current {self.strategy_name} strategy has been updated "
                             f"to reflect the new configuration.")
 
